@@ -1,0 +1,11 @@
+
+{
+    "PackageName": "APP007-FortiClientVPN",
+    "PackageUniqueGUID": "7b34084e-b856-40f5-9a5b-32b3249fb777",
+    "Version": 1,
+    "PackageExecutionContext": "SYSTEM",
+    "RepetitionInterval": "PT60M",
+    "LoggingDeploymentName": "APP007-FortiClientVPNCustomlog",
+    "ScriptMode": "Remediation",
+    "RunOnDemand": true
+  }
