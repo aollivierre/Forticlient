@@ -125,8 +125,8 @@ Write-Host "Starting to call Get-ModulesFolderPath..."
 # Store the outcome in $ModulesFolderPath
 try {
   
-    $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
-    # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
+    # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
+    $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
     Write-host "Modules folder path: $ModulesFolderPath"
 
 }
@@ -179,4 +179,92 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
 # ################################################################################################################################
 
-Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+# Function to uninstall FortiClient EMS Agent Application
+function Uninstall-FortiClientEMSAgentApplication {
+    [CmdletBinding()]
+    param()
+
+    begin {
+        Write-EnhancedLog -Message 'Starting the uninstall process...' -Level 'INFO'
+
+        $uninstallKeys = @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+        )
+    }
+
+    process {
+        try {
+            $productId = Find-UninstallString -UninstallKeys $uninstallKeys -ApplicationName '*Forti*'
+
+            if ($null -ne $productId) {
+                Write-EnhancedLog -Message "Found product ID: $productId" -Level 'INFO'
+                Invoke-Uninstall -ProductId $productId
+            } else {
+                Write-EnhancedLog -Message 'Product ID not found for FortiClientEMSAgent application.' -Level 'WARNING'
+            }
+        } catch {
+            Handle-Error -ErrorRecord $_
+        }
+    }
+
+    end {
+        Write-EnhancedLog -Message 'Uninstall process completed.' -Level 'INFO'
+    }
+}
+
+# Function to find the uninstall string from the registry
+function Find-UninstallString {
+    param (
+        [string[]]$UninstallKeys,
+        [string]$ApplicationName
+    )
+
+    try {
+        foreach ($key in $UninstallKeys) {
+            $items = Get-ChildItem -Path $key -ErrorAction SilentlyContinue
+            foreach ($item in $items) {
+                $app = Get-ItemProperty -Path $item.PsPath
+                if ($app.DisplayName -like $ApplicationName) {
+                    Write-EnhancedLog -Message "Found application: $($app.DisplayName) with product ID: $($app.PSChildName)" -Level 'INFO'
+                    return $app.PSChildName.Trim('{}')
+                }
+            }
+        }
+        Write-EnhancedLog -Message "No matching application found for: $ApplicationName" -Level 'WARNING'
+    } catch {
+        Handle-Error -ErrorRecord $_
+    }
+    return $null
+}
+
+# Function to invoke the uninstallation process
+function Invoke-Uninstall {
+    param (
+        [string]$ProductId
+    )
+
+    try {
+        Write-EnhancedLog -Message 'Starting uninstallation process.' -Level 'INFO'
+
+        # Construct the MsiExec.exe command
+        $filePath = "MsiExec.exe"
+        $arguments = "/X{$ProductId} /quiet /norestart"
+
+        Write-EnhancedLog -Message "FilePath: $filePath" -Level 'INFO'
+        Write-EnhancedLog -Message "Arguments: $arguments" -Level 'INFO'
+
+        Start-Process -FilePath $filePath -ArgumentList $arguments -Wait -WindowStyle Hidden
+
+        Write-EnhancedLog -Message "Executed uninstallation with arguments: $arguments" -Level 'INFO'
+    } catch {
+        Write-EnhancedLog -Message "An error occurred during the uninstallation process: $($_.Exception.Message)" -Level 'ERROR'
+        Handle-Error -ErrorRecord $_
+    }
+}
+
+# Execute the uninstallation process
+Uninstall-FortiClientEMSAgentApplication
+
+#the above function handles the MSIExec uninstall string
+#or you can run the Zero Config Uninstall from PSADT to handle the MSIExec uinstall string

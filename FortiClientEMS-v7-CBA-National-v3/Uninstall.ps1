@@ -125,8 +125,8 @@ Write-Host "Starting to call Get-ModulesFolderPath..."
 # Store the outcome in $ModulesFolderPath
 try {
   
-    $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
-    # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
+    # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
+    $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
     Write-host "Modules folder path: $ModulesFolderPath"
 
 }
@@ -175,5 +175,8 @@ $ScriptToRunAsSystem = $MyInvocation.MyCommand.Path
 Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSystem -TargetFolder $privateFolderPath
 
 
-# Start the process, wait for it to complete, and optionally hide the window
-Start-Process -FilePath "$Psscriptroot\Deploy-Application.exe" -Wait -WindowStyle Hidden
+# ################################################################################################################################
+# ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
+# ################################################################################################################################
+
+Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
