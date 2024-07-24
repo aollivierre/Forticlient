@@ -178,4 +178,17 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # Start the process, wait for it to complete, and optionally hide the window
 # Start-Process -FilePath "$Psscriptroot\Deploy-Application.exe" -Wait -WindowStyle Hidden
 
-Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Install`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+# Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Install`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+
+
+# Define the path to the PowerShell executable
+$powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+# Define the path to the deploy-application.ps1 script
+$scriptPath = "$PSScriptRoot\deploy-application.ps1"
+
+# Define the arguments for the script
+$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "Install" -DeployMode "Interactive"'
+
+# Start the process without hiding the window
+Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait

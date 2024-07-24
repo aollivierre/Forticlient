@@ -179,4 +179,16 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
 # ################################################################################################################################
 
-Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+# Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+
+# Define the path to the PowerShell executable
+$powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+# Define the path to the deploy-application.ps1 script
+$scriptPath = "$PSScriptRoot\deploy-application.ps1"
+
+# Define the arguments for the script
+$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "UnInstall" -DeployMode "Interactive"'
+
+# Start the process without hiding the window
+Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait

@@ -189,8 +189,7 @@ $powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.ex
 $scriptPath = "$PSScriptRoot\deploy-application.ps1"
 
 # Define the arguments for the script
-$arguments = '-ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "UnInstall" -DeployMode "Interactive"'
+$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "UnInstall" -DeployMode "Interactive"'
 
-# Start the process
-# Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait -WindowStyle Hidden
-Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait -WindowStyle 
+# Start the process without hiding the window
+Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait
