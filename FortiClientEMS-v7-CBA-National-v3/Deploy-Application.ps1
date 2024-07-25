@@ -138,11 +138,10 @@ Try {
     } Else {
         $InvocationInfo = $MyInvocation
     }
-    [String]$scriptDirectory = Split-Path -Path $InvocationInfo.MyCommand.Definition -Parent
 
     ## Dot source the required App Deploy Toolkit Functions
     Try {
-        [String]$moduleAppDeployToolkitMain = "$scriptDirectory\AppDeployToolkit\AppDeployToolkitMain.ps1"
+        [String]$moduleAppDeployToolkitMain = "$PSScriptroot\AppDeployToolkit\AppDeployToolkitMain.ps1"
         If (-not (Test-Path -LiteralPath $moduleAppDeployToolkitMain -PathType 'Leaf')) {
             Throw "Module does not exist at the specified location [$moduleAppDeployToolkitMain]."
         }
@@ -213,7 +212,7 @@ Try {
 
             # Construct the paths dynamically using the base paths
             $global:modulePath = Join-Path -Path $modulesBasePath -ChildPath $WindowsModulePath
-            $global:AOscriptDirectory = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
+            $global:AOPSScriptroot = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
             $global:directoryPath = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
             $global:Repo_Path = $scriptBasePath
             $global:Repo_winget = "$Repo_Path\Win32Apps-DropBox"
@@ -236,7 +235,7 @@ Try {
             Import-Module $LinuxModulePath -Verbose
 
             # Convert paths from Windows to Linux format
-            $global:AOscriptDirectory = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
+            $global:AOPSScriptroot = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
             $global:directoryPath = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot\Win32Apps-DropBox"
             $global:Repo_Path = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
             $global:Repo_winget = "$global:Repo_Path\Win32Apps-DropBox"
@@ -261,7 +260,7 @@ Try {
     Write-Output "scriptBasePath: $scriptBasePath"
     Write-Output "modulesBasePath: $modulesBasePath"
     Write-Output "modulePath: $modulePath"
-    Write-Output "AOscriptDirectory: $AOscriptDirectory"
+    Write-Output "AOPSScriptroot: $AOPSScriptroot"
     Write-Output "directoryPath: $directoryPath"
     Write-Output "Repo_Path: $Repo_Path"
     Write-Output "Repo_winget: $Repo_winget"
@@ -391,12 +390,13 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
 
 
-        $scriptDirectory = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-        Start-Process -FilePath "$scriptDirectory\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/quiet /norestart' -Wait -WindowStyle Hidden
+
+        Start-Process -FilePath "$PSSscriptroot\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/quiet /norestart' -Wait -WindowStyle Hidden
   
   
   
   
+
         function WaitForRegistryKey {
             param (
                 [string[]]$RegistryPaths,
@@ -404,38 +404,52 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                 [version]$MinimumVersion,
                 [int]$TimeoutSeconds = 120
             )
-          
+        
+            # Import necessary modules and set up logging
+            Import-Module 'EnhancedLog'
+            Import-Module 'ErrorHandling'
+        
+            Write-EnhancedLog -Message "Starting WaitForRegistryKey function" -Level "INFO"
+            Write-EnhancedLog -Message "Checking for $SoftwareName version $MinimumVersion or later" -Level "INFO"
+        
             $elapsedSeconds = 0
-          
-            while ($elapsedSeconds -lt $TimeoutSeconds) {
-                # Write-Output "Checking registry for $SoftwareName version $MinimumVersion or later... (Elapsed time: $elapsedSeconds seconds)"
-          
-                foreach ($path in $RegistryPaths) {
-                    $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
-          
-                    foreach ($item in $items) {
-                        $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
-                        if ($app.DisplayName -like "*$SoftwareName*") {
-                            $installedVersion = New-Object Version $app.DisplayVersion
-                            if ($installedVersion -ge $MinimumVersion) {
-                                Write-Output "Found $SoftwareName version $installedVersion at $item.PsPath."
-                                return @{
-                                    IsInstalled = $true
-                                    Version     = $app.DisplayVersion
-                                    ProductCode = $app.PSChildName
+        
+            try {
+                while ($elapsedSeconds -lt $TimeoutSeconds) {
+                    foreach ($path in $RegistryPaths) {
+                        $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
+        
+                        foreach ($item in $items) {
+                            $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
+                            if ($app.DisplayName -like "*$SoftwareName*") {
+                                $installedVersion = New-Object Version $app.DisplayVersion
+                                if ($installedVersion -ge $MinimumVersion) {
+                                    Write-EnhancedLog -Message "Found $SoftwareName version $installedVersion at $item.PsPath" -Level "INFO"
+                                    return @{
+                                        IsInstalled = $true
+                                        Version     = $app.DisplayVersion
+                                        ProductCode = $app.PSChildName
+                                    }
                                 }
                             }
                         }
                     }
+        
+                    Start-Sleep -Seconds 1
+                    $elapsedSeconds++
                 }
-          
-                Start-Sleep -Seconds 1
-                $elapsedSeconds++
+        
+                Write-EnhancedLog -Message "Timeout reached. $SoftwareName version $MinimumVersion or later not found." -Level "WARNING"
+                return @{ IsInstalled = $false }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message "WaitForRegistryKey function completed" -Level "INFO"
             }
-          
-            Write-Output "Timeout reached. $SoftwareName version $MinimumVersion or later not found."
-            return @{IsInstalled = $false }
         }
+        
+
+      
           
           
   
@@ -466,7 +480,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
   
   
   
-        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$scriptDirectory\CBA_National_SSL_VPN_SAML.reg`"" -Wait
+        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$PSScriptroot\CBA_National_SSL_VPN_SAML.reg`"" -Wait
 
 
         ##*===============================================
@@ -530,7 +544,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
             try {
                 # Call your uninstall commands here
                 # the following does not really remove the EMS 7.2.3 but will keep it in case it removes other older versions
-                Start-Process -FilePath "$scriptDirectory\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/uninstallfamily /quiet' -Wait
+                # Start-Process -FilePath "$PSScriptroot\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/uninstallfamily /quiet' -Wait
 
                 #instead of manually hard coding the uninstall product code below we will fetch it dynamically to remove any FortiClient product
                 # Start-Process -FilePath "MsiExec.exe" -ArgumentList "/X{611804A7-F14E-45A2-9F55-345D33EDD28E} /quiet /forcerestart" -Wait
@@ -621,7 +635,52 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                 }
 
                 # Execute the uninstallation process
-                Uninstall-FortiClientEMSAgentApplication
+                # Uninstall-FortiClientEMSAgentApplication
+
+
+
+                function Remove-FortiSoftware {
+                    param (
+                        [string]$PSScriptroot
+                    )
+                
+                    Write-EnhancedLog -Message 'Starting Remove-FortiSoftware function' -Level 'INFO'
+                
+                    try {
+                        $identifyingNumber = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like '*forti*' } | Select-Object -ExpandProperty IdentifyingNumber
+                        
+                        if ($identifyingNumber) {
+                            Write-EnhancedLog -Message "Found software with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
+                            $msiZapPath = "$PSScriptroot\MsiZap.Exe"
+                
+                            if (Test-Path $msiZapPath) {
+                                Write-EnhancedLog -Message "Executing MsiZap with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
+                                Start-Process -FilePath $msiZapPath -ArgumentList "TW! $identifyingNumber" -Verb RunAs -Wait
+                                Write-EnhancedLog -Message 'MsiZap process completed' -Level 'INFO'
+                            } else {
+                                Write-EnhancedLog -Message "MsiZap.exe not found at path: $msiZapPath" -Level 'ERROR'
+                            }
+                        } else {
+                            Write-EnhancedLog -Message 'No matching software found' -Level 'WARNING'
+                        }
+                    } catch {
+                        Handle-Error -ErrorRecord $_
+                    } finally {
+                        Write-EnhancedLog -Message 'Remove-FortiSoftware function completed' -Level 'INFO'
+                    }
+                }
+                
+                # Example usage of Remove-FortiSoftware function
+
+
+                # Call the function to remove Forti software
+                Remove-FortiSoftware -PSScriptroot $PSScriptroot
+
+      
+
+
+                # Restart-Computer -Force
+
         
                 # Show restart prompt after uninstallation
                 Show-InstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60 -TopMost $true

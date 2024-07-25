@@ -657,7 +657,7 @@ If ($promptResult -eq 'Continue') {
 
         
         # the following does not really remove the EMS 7.2.3 but will keep it in case it removes other older versions
-        Start-Process -FilePath "$scriptDirectory\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/uninstallfamily /quiet' -Wait
+        # Start-Process -FilePath "$scriptDirectory\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/uninstallfamily /quiet' -Wait
 
         #instead of manually hard coding the uninstall product code below we will fetch it dynamically to remove any FortiClient product
         # Start-Process -FilePath "MsiExec.exe" -ArgumentList "/X{611804A7-F14E-45A2-9F55-345D33EDD28E} /quiet /forcerestart" -Wait
@@ -750,10 +750,35 @@ If ($promptResult -eq 'Continue') {
             }
         }
 
-        Uninstall-FortiClientEMSAgentApplication
+        # Uninstall-FortiClientEMSAgentApplication
 
 
 
+
+
+
+
+
+
+
+
+
+         
+        $identifyingNumber = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like '*forti*' } | Select-Object -ExpandProperty IdentifyingNumber
+        # Execute MsiZap.Exe with the retrieved GUID &&  YOU CAN SPECIFY THE PATH FOR THE MSIZAP HERE AFTER DEPLOYED TO LOCAL COMPUTER OF ENDUSERS
+ 
+        if ($identifyingNumber) {
+ 
+        Start-Process -FilePath "$scriptDirectory\MsiZap.Exe" -ArgumentList "TW! $identifyingNumber" -Verb RunAs -Wait
+ 
+        } else {
+ 
+        Write-Host 'No matching software found.'
+ 
+        }
+
+
+        # Restart-Computer -Force
 
 
 
@@ -788,16 +813,16 @@ If ($promptResult -eq 'Continue') {
         # }
 
 
-        #*****************************************************************************
-        #********************Uninstall Forticlient / Scrapping it ********************
-        #*****************************************************************************
+        # *****************************************************************************
+        # ********************Uninstall Forticlient / Scrapping it ********************
+        # *****************************************************************************
  
-        #the following technique has not been tested well yet and will be activated in case the above method with MSI Exec does not work
+        # the following technique has not been tested well yet and will be activated in case the above method with MSI Exec does not work
 
         # Retrieve the IdentifyingNumber for software with "forti" in the name
  
         # $identifyingNumber = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like '*forti*' } | Select-Object -ExpandProperty IdentifyingNumber
-        # Execute MsiZap.Exe with the retrieved GUID &&  YOU CAN SPECIFY THE PATH FOR THE MSIZAP HERE AFTER DEPLOYED TO LOCAL COMPUTER OF ENDUSERS
+        # # Execute MsiZap.Exe with the retrieved GUID &&  YOU CAN SPECIFY THE PATH FOR THE MSIZAP HERE AFTER DEPLOYED TO LOCAL COMPUTER OF ENDUSERS
  
         # if ($identifyingNumber) {
  
