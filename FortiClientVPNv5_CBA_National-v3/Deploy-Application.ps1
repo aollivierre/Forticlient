@@ -138,11 +138,10 @@ Try {
     } Else {
         $InvocationInfo = $MyInvocation
     }
-    [String]$scriptDirectory = Split-Path -Path $InvocationInfo.MyCommand.Definition -Parent
 
     ## Dot source the required App Deploy Toolkit Functions
     Try {
-        [String]$moduleAppDeployToolkitMain = "$scriptDirectory\AppDeployToolkit\AppDeployToolkitMain.ps1"
+        [String]$moduleAppDeployToolkitMain = "$PSScriptroot\AppDeployToolkit\AppDeployToolkitMain.ps1"
         If (-not (Test-Path -LiteralPath $moduleAppDeployToolkitMain -PathType 'Leaf')) {
             Throw "Module does not exist at the specified location [$moduleAppDeployToolkitMain]."
         }
@@ -212,7 +211,7 @@ Try {
 
             # Construct the paths dynamically using the base paths
             $global:modulePath = Join-Path -Path $modulesBasePath -ChildPath $WindowsModulePath
-            $global:AOscriptDirectory = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
+            $global:AOPSScriptroot = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
             $global:directoryPath = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
             $global:Repo_Path = $scriptBasePath
             $global:Repo_winget = "$Repo_Path\Win32Apps-DropBox"
@@ -235,7 +234,7 @@ Try {
             Import-Module $LinuxModulePath -Verbose
 
             # Convert paths from Windows to Linux format
-            $global:AOscriptDirectory = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
+            $global:AOPSScriptroot = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
             $global:directoryPath = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot\Win32Apps-DropBox"
             $global:Repo_Path = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
             $global:Repo_winget = "$global:Repo_Path\Win32Apps-DropBox"
@@ -260,7 +259,7 @@ Try {
     Write-Output "scriptBasePath: $scriptBasePath"
     Write-Output "modulesBasePath: $modulesBasePath"
     Write-Output "modulePath: $modulePath"
-    Write-Output "AOscriptDirectory: $AOscriptDirectory"
+    Write-Output "AOPSScriptroot: $AOPSScriptroot"
     Write-Output "directoryPath: $directoryPath"
     Write-Output "Repo_Path: $Repo_Path"
     Write-Output "Repo_winget: $Repo_winget"
@@ -383,10 +382,41 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         ## <Perform Installation tasks here>
 
 
+        # Start-Process -FilePath 'MsiExec.exe' -ArgumentList "/i `"$PSScriptroot\FortiClient.msi`" /quiet /norestart" -Wait
 
-        $scriptDirectory = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
-        Start-Process -FilePath 'MsiExec.exe' -ArgumentList "/i `"$scriptDirectory\FortiClient.msi`" /quiet /norestart" -Wait
 
+        function Install-MsiPackage {
+            param (
+                [string]$scriptroot,
+                [string]$MsiFileName
+            )
+        
+            Write-EnhancedLog -Message "Starting Install-MsiPackage function for: $MsiFileName" -Level 'INFO'
+        
+            try {
+                $installerPath = Join-Path -Path $scriptroot -ChildPath $MsiFileName
+                
+                if (Test-Path $installerPath) {
+                    Write-EnhancedLog -Message "Found installer file: $installerPath" -Level 'INFO'
+                    Start-Process -FilePath 'MsiExec.exe' -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait
+                    Write-EnhancedLog -Message "Installation process completed for: $installerPath" -Level 'INFO'
+                    Write-Output "Installation process completed for: $installerPath"
+                } else {
+                    Write-EnhancedLog -Message "Installer file not found at path: $installerPath" -Level 'ERROR'
+                    Write-Output "Installer file not found at path: $installerPath"
+                }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'Install-MsiPackage function completed' -Level 'INFO'
+            }
+        }
+        
+        # Example usage of Install-MsiPackage function
+        # Call the function to install any MSI package
+        Install-MsiPackage -scriptroot $PSScriptroot -MsiFileName "FortiClient.msi"
+        
+        
 
 
 
@@ -397,39 +427,46 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                 [version]$MinimumVersion,
                 [int]$TimeoutSeconds = 120
             )
+    
+        
+            Write-EnhancedLog -Message 'Starting WaitForRegistryKey function' -Level 'INFO'
+            Write-EnhancedLog -Message "Checking for $SoftwareName version $MinimumVersion or later" -Level 'INFO'
         
             $elapsedSeconds = 0
         
-            while ($elapsedSeconds -lt $TimeoutSeconds) {
-                # Write-Output "Checking registry for $SoftwareName version $MinimumVersion or later... (Elapsed time: $elapsedSeconds seconds)"
+            try {
+                while ($elapsedSeconds -lt $TimeoutSeconds) {
+                    foreach ($path in $RegistryPaths) {
+                        $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
         
-                foreach ($path in $RegistryPaths) {
-                    $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
-        
-                    foreach ($item in $items) {
-                        $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
-                        if ($app.DisplayName -like "*$SoftwareName*") {
-                            $installedVersion = New-Object Version $app.DisplayVersion
-                            if ($installedVersion -ge $MinimumVersion) {
-                                Write-Output "Found $SoftwareName version $installedVersion at $item.PsPath."
-                                return @{
-                                    IsInstalled = $true
-                                    Version     = $app.DisplayVersion
-                                    ProductCode = $app.PSChildName
+                        foreach ($item in $items) {
+                            $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
+                            if ($app.DisplayName -like "*$SoftwareName*") {
+                                $installedVersion = New-Object Version $app.DisplayVersion
+                                if ($installedVersion -ge $MinimumVersion) {
+                                    Write-EnhancedLog -Message "Found $SoftwareName version $installedVersion at $item.PsPath" -Level 'INFO'
+                                    return @{
+                                        IsInstalled = $true
+                                        Version     = $app.DisplayVersion
+                                        ProductCode = $app.PSChildName
+                                    }
                                 }
                             }
                         }
                     }
+        
+                    Start-Sleep -Seconds 1
+                    $elapsedSeconds++
                 }
         
-                Start-Sleep -Seconds 1
-                $elapsedSeconds++
+                Write-EnhancedLog -Message "Timeout reached. $SoftwareName version $MinimumVersion or later not found." -Level 'WARNING'
+                return @{ IsInstalled = $false }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'WaitForRegistryKey function completed' -Level 'INFO'
             }
-        
-            Write-Output "Timeout reached. $SoftwareName version $MinimumVersion or later not found."
-            return @{IsInstalled = $false }
         }
-        
         
 
 
@@ -458,7 +495,174 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
 
 
-        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$scriptDirectory\CBA_National_SSL_VPN_SAML.reg`"" -Wait
+        # Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$PSScriptroot\CBA_National_SSL_VPN_SAML.reg`"" -Wait
+
+
+
+
+
+
+        function Import-RegistryFilesInScriptRoot {
+            Write-EnhancedLog -Message 'Starting Import-RegistryFilesInScriptRoot function' -Level 'INFO'
+        
+            try {
+                $scriptDirectory = $PSScriptRoot
+                $registryFiles = Get-ChildItem -Path $scriptDirectory -Filter *.reg
+        
+                if ($registryFiles.Count -eq 0) {
+                    Write-EnhancedLog -Message "No registry files found in the directory: $scriptDirectory" -Level 'WARNING'
+                    return
+                }
+        
+                foreach ($registryFile in $registryFiles) {
+                    $registryFilePath = $registryFile.FullName
+        
+                    if (Test-Path $registryFilePath) {
+                        Write-EnhancedLog -Message "Found registry file: $registryFilePath" -Level 'INFO'
+                        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$registryFilePath`"" -Wait
+                        Write-EnhancedLog -Message "Registry file import process completed for: $registryFilePath" -Level 'INFO'
+        
+                        # Validate the registry keys
+                        Validate-RegistryKeys -RegistryFilePath $registryFilePath
+                    } else {
+                        Write-EnhancedLog -Message "Registry file not found at path: $registryFilePath" -Level 'ERROR'
+                    }
+                }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'Import-RegistryFilesInScriptRoot function completed' -Level 'INFO'
+            }
+        }
+        
+        function Validate-RegistryKeys {
+            param (
+                [string]$RegistryFilePath
+            )
+        
+            Write-EnhancedLog -Message "Starting Validate-RegistryKeys function for: $RegistryFilePath" -Level 'INFO'
+        
+            try {
+                $importedKeys = Get-Content -Path $RegistryFilePath | Where-Object { $_ -match '^\[.*\]$' } | ForEach-Object { $_ -replace '^\[|\]$', '' }
+                $importSuccess = $true
+        
+                foreach ($key in $importedKeys) {
+                    if (Test-Path -Path "Registry::$key") {
+                        Write-EnhancedLog -Message "Validated registry key: $key" -Level 'INFO'
+                        Write-EnhancedLog "Validated registry key: $key" -Level 'INFO'
+                    } else {
+                        Write-EnhancedLog -Message "Failed to validate registry key: $key" -Level 'ERROR'
+                        Write-EnhancedLog "Failed to validate registry key: $key" -Level 'ERROR'
+                        $importSuccess = $false
+                    }
+                }
+        
+                if ($importSuccess) {
+                    Write-EnhancedLog -Message "Successfully validated all registry keys for: $RegistryFilePath" -Level 'INFO'
+                } else {
+                    Write-EnhancedLog -Message "Some registry keys failed to validate for: $RegistryFilePath" -Level 'ERROR'
+                }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'Validate-RegistryKeys function completed' -Level 'INFO'
+            }
+        }
+        
+        # Example usage of Import-RegistryFilesInScriptRoot function
+        # Call the function to import all registry files in the script root
+        Import-RegistryFilesInScriptRoot
+
+
+
+
+        
+        function Import-FortiClientConfig {
+            param (
+                [string]$ScriptRoot,
+                [string]$FortiClientPath
+            )
+        
+            Write-EnhancedLog -Message 'Starting Import-FortiClientConfig function' -Level 'INFO'
+        
+            try {
+                # Find the XML configuration file in the root of the script directory
+                $xmlConfigFile = Get-ChildItem -Path $ScriptRoot -Filter "*.xml" | Select-Object -First 1
+        
+                if (-not $xmlConfigFile) {
+                    Write-EnhancedLog -Message "No XML configuration file found in the script directory: $ScriptRoot" -Level 'ERROR'
+                    Write-Output "No XML configuration file found in the script directory: $ScriptRoot"
+                    return
+                }
+        
+                # Check if the FortiClient directory exists
+                if (-not (Test-Path -Path $FortiClientPath)) {
+                    Write-EnhancedLog -Message "FortiClient directory not found at path: $FortiClientPath" -Level 'ERROR'
+                    Write-Output "FortiClient directory not found at path: $FortiClientPath"
+                    return
+                }
+        
+                # Set location to FortiClient directory
+                Set-Location -Path $FortiClientPath
+        
+                # Execute the FCConfig.exe with the specified arguments
+                $fcConfigPath = Join-Path -Path $FortiClientPath -ChildPath "FCConfig.exe"
+                # Start-Process -FilePath $fcConfigPath -ArgumentList "-m all -f `"$xmlConfigFile.FullName`" -o import -i 1" -NoNewWindow -Wait
+                Start-Process -FilePath $fcConfigPath -ArgumentList "-m all -f `"$xmlConfigFile.FullName`" -o import -i 1" -Wait
+        
+                Write-EnhancedLog -Message 'FCConfig process completed' -Level 'INFO'
+                Write-Output "FCConfig process completed"
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'Import-FortiClientConfig function completed' -Level 'INFO'
+            }
+        }
+        
+        # Example usage of Import-FortiClientConfig function
+        # Call the function to import the FortiClient configuration
+        # Define the parameters for the function using splatting
+        $importParams = @{
+            ScriptRoot      = $PSScriptRoot
+            FortiClientPath = "C:\Program Files\Fortinet\FortiClient"
+        }
+
+        # Call the Import-FortiClientConfig function using splatting
+        Import-FortiClientConfig @importParams
+
+        
+
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
         ##*===============================================

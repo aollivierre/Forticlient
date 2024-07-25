@@ -391,7 +391,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
 
 
-        Start-Process -FilePath "$PSSscriptroot\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/quiet /norestart' -Wait -WindowStyle Hidden
+        Start-Process -FilePath "$PSscriptroot\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/quiet /norestart' -Wait -WindowStyle Hidden
   
   
   
@@ -404,10 +404,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                 [version]$MinimumVersion,
                 [int]$TimeoutSeconds = 120
             )
-        
-            # Import necessary modules and set up logging
-            Import-Module 'EnhancedLog'
-            Import-Module 'ErrorHandling'
+    
         
             Write-EnhancedLog -Message "Starting WaitForRegistryKey function" -Level "INFO"
             Write-EnhancedLog -Message "Checking for $SoftwareName version $MinimumVersion or later" -Level "INFO"
@@ -480,7 +477,83 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
   
   
   
-        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$PSScriptroot\CBA_National_SSL_VPN_SAML.reg`"" -Wait
+        # Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$PSScriptroot\CBA_National_SSL_VPN_SAML.reg`"" -Wait
+
+
+
+        
+        function Import-RegistryFilesInScriptRoot {
+            Write-EnhancedLog -Message 'Starting Import-RegistryFilesInScriptRoot function' -Level 'INFO'
+        
+            try {
+                $scriptDirectory = $PSScriptRoot
+                $registryFiles = Get-ChildItem -Path $scriptDirectory -Filter *.reg
+        
+                if ($registryFiles.Count -eq 0) {
+                    Write-EnhancedLog -Message "No registry files found in the directory: $scriptDirectory" -Level 'WARNING'
+                    return
+                }
+        
+                foreach ($registryFile in $registryFiles) {
+                    $registryFilePath = $registryFile.FullName
+        
+                    if (Test-Path $registryFilePath) {
+                        Write-EnhancedLog -Message "Found registry file: $registryFilePath" -Level 'INFO'
+                        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$registryFilePath`"" -Wait
+                        Write-EnhancedLog -Message "Registry file import process completed for: $registryFilePath" -Level 'INFO'
+        
+                        # Validate the registry keys
+                        Validate-RegistryKeys -RegistryFilePath $registryFilePath
+                    } else {
+                        Write-EnhancedLog -Message "Registry file not found at path: $registryFilePath" -Level 'ERROR'
+                    }
+                }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'Import-RegistryFilesInScriptRoot function completed' -Level 'INFO'
+            }
+        }
+        
+        function Validate-RegistryKeys {
+            param (
+                [string]$RegistryFilePath
+            )
+        
+            Write-EnhancedLog -Message "Starting Validate-RegistryKeys function for: $RegistryFilePath" -Level 'INFO'
+        
+            try {
+                $importedKeys = Get-Content -Path $RegistryFilePath | Where-Object { $_ -match '^\[.*\]$' } | ForEach-Object { $_ -replace '^\[|\]$', '' }
+                $importSuccess = $true
+        
+                foreach ($key in $importedKeys) {
+                    if (Test-Path -Path "Registry::$key") {
+                        Write-EnhancedLog -Message "Validated registry key: $key" -Level 'INFO'
+                        Write-EnhancedLog "Validated registry key: $key" -Level 'INFO'
+                    } else {
+                        Write-EnhancedLog -Message "Failed to validate registry key: $key" -Level 'ERROR'
+                        Write-EnhancedLog "Failed to validate registry key: $key" -Level 'ERROR'
+                        $importSuccess = $false
+                    }
+                }
+        
+                if ($importSuccess) {
+                    Write-EnhancedLog -Message "Successfully validated all registry keys for: $RegistryFilePath" -Level 'INFO'
+                } else {
+                    Write-EnhancedLog -Message "Some registry keys failed to validate for: $RegistryFilePath" -Level 'ERROR'
+                }
+            } catch {
+                Handle-Error -ErrorRecord $_
+            } finally {
+                Write-EnhancedLog -Message 'Validate-RegistryKeys function completed' -Level 'INFO'
+            }
+        }
+        
+        # Example usage of Import-RegistryFilesInScriptRoot function
+        # Call the function to import all registry files in the script root
+        Import-RegistryFilesInScriptRoot
+
+
 
 
         ##*===============================================
@@ -640,28 +713,25 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
 
                 function Remove-FortiSoftware {
-                    param (
-                        [string]$PSScriptroot
-                    )
-                
+                 
                     Write-EnhancedLog -Message 'Starting Remove-FortiSoftware function' -Level 'INFO'
                 
                     try {
-                        $identifyingNumber = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like '*forti*' } | Select-Object -ExpandProperty IdentifyingNumber
+                        $msiZapPath = Join-Path -Path $PSScriptroot -ChildPath "MsiZap.Exe"
                         
-                        if ($identifyingNumber) {
-                            Write-EnhancedLog -Message "Found software with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
-                            $msiZapPath = "$PSScriptroot\MsiZap.Exe"
+                        if (Test-Path $msiZapPath) {
+                            $identifyingNumber = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like '*forti*' } | Select-Object -ExpandProperty IdentifyingNumber
                 
-                            if (Test-Path $msiZapPath) {
+                            if ($identifyingNumber) {
+                                Write-EnhancedLog -Message "Found software with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
                                 Write-EnhancedLog -Message "Executing MsiZap with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
                                 Start-Process -FilePath $msiZapPath -ArgumentList "TW! $identifyingNumber" -Verb RunAs -Wait
                                 Write-EnhancedLog -Message 'MsiZap process completed' -Level 'INFO'
                             } else {
-                                Write-EnhancedLog -Message "MsiZap.exe not found at path: $msiZapPath" -Level 'ERROR'
+                                Write-EnhancedLog -Message 'No matching software found' -Level 'WARNING'
                             }
                         } else {
-                            Write-EnhancedLog -Message 'No matching software found' -Level 'WARNING'
+                            Write-EnhancedLog -Message "MsiZap.exe not found at path: $msiZapPath" -Level 'ERROR'
                         }
                     } catch {
                         Handle-Error -ErrorRecord $_
@@ -671,12 +741,71 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                 }
                 
                 # Example usage of Remove-FortiSoftware function
-
-
-                # Call the function to remove Forti software
-                Remove-FortiSoftware -PSScriptroot $PSScriptroot
-
+                 # Call the function to remove Forti software
+                Remove-FortiSoftware
       
+
+
+                function Remove-RegistryPath {
+                    param (
+                        [string]$RegistryPath
+                    )
+                
+                    Write-EnhancedLog -Message "Starting Remove-RegistryPath function for: $RegistryPath" -Level 'INFO'
+                
+                    try {
+                        if (Test-Path -Path "Registry::$RegistryPath") {
+                            Remove-Item -Path "Registry::$RegistryPath" -Recurse -Force
+                            Write-EnhancedLog -Message "Successfully removed registry path: $RegistryPath" -Level 'INFO'
+                            Write-Output "Successfully removed registry path: $RegistryPath"
+                        } else {
+                            Write-EnhancedLog -Message "Registry path not found: $RegistryPath" -Level 'WARNING'
+                            Write-Output "Registry path not found: $RegistryPath"
+                        }
+                    } catch {
+                        Handle-Error -ErrorRecord $_
+                    } finally {
+                        Write-EnhancedLog -Message 'Remove-RegistryPath function completed' -Level 'INFO'
+                    }
+                }
+                
+                function Validate-RegistryRemoval {
+                    param (
+                        [string]$RegistryPath
+                    )
+                
+                    Write-EnhancedLog -Message "Starting Validate-RegistryRemoval function for: $RegistryPath" -Level 'INFO'
+                
+                    try {
+                        if (Test-Path -Path "Registry::$RegistryPath") {
+                            Write-EnhancedLog -Message "Registry path still exists: $RegistryPath" -Level 'ERROR'
+                            Write-Output "Registry path still exists: $RegistryPath"
+                        } else {
+                            Write-EnhancedLog -Message "Registry path successfully removed: $RegistryPath" -Level 'INFO'
+                            Write-Output "Registry path successfully removed: $RegistryPath"
+                        }
+                    } catch {
+                        Handle-Error -ErrorRecord $_
+                    } finally {
+                        Write-EnhancedLog -Message 'Validate-RegistryRemoval function completed' -Level 'INFO'
+                    }
+                }
+                
+                # Example usage of Remove-RegistryPath and Validate-RegistryRemoval functions
+                # Call the function to remove the specified registry path
+                Remove-RegistryPath -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
+                
+                # Call the function to validate the removal of the specified registry path
+                Validate-RegistryRemoval -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
+                
+
+
+
+
+
+
+
+
 
 
                 # Restart-Computer -Force
