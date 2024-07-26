@@ -43,7 +43,11 @@ This example initializes the script variables with the specified values.
         [string]$ScriptMode,
 
         [Parameter(Mandatory = $true)]
-        [string]$PackageExecutionContext
+        [string]$PackageExecutionContext,
+
+
+        [Parameter(Mandatory = $true)]
+        [string]$RepetitionInterval
     )
 
     # Assuming Set-LocalPathBasedOnContext and Test-RunningAsSystem are defined elsewhere
@@ -79,6 +83,7 @@ This example initializes the script variables with the specified values.
             schtaskName             = $schtaskName
             schtaskDescription      = $schtaskDescription
             PackageExecutionContext = $PackageExecutionContext
+            RepetitionInterval     = $RepetitionInterval
         }
     }
     catch {

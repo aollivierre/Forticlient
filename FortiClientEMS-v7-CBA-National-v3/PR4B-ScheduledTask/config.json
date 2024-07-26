@@ -1,9 +1,9 @@
 {
-  "PackageName": "PR4B_ForticlientEMS",
-  "PackageUniqueGUID": "a9b10f27-0fca-4ed8-ac27-79e3428e27e4",
+  "PackageName": "PR4B_BitlockerRecoveryEscrow-v10",
+  "PackageUniqueGUID": "c793029f-08b5-496e-a79f-447a57babb71",
   "Version": 1,
   "PackageExecutionContext": "System",
-  "LoggingDeploymentName": "PR4B_ForticlientEMSCustomlog",
+  "LoggingDeploymentName": "PR4B_BitlockerRecoveryEscrow-v10Customlog",
   "ScriptMode": "Remediation",
   "RunOnDemand": false,
   "RepetitionInterval": "PT60M" ,

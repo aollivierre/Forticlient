@@ -18,9 +18,9 @@ function IsAdmin {
             $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
             
             if ($isAdmin) {
-                Write-EnhancedLog -Message "Current user is an administrator" -Level "INFO" -ForegroundColor ([ConsoleColor]::Green)
+                Write-EnhancedLog -Message "Current user is an administrator" -Level "INFO"
             } else {
-                Write-EnhancedLog -Message "Current user is not an administrator" -Level "WARNING" -ForegroundColor ([ConsoleColor]::Yellow)
+                Write-EnhancedLog -Message "Current user is not an administrator" -Level "WARNING"
             }
             
             return $isAdmin

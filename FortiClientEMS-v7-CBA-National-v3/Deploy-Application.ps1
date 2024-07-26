@@ -399,71 +399,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
         ## <Perform Installation tasks here>
 
-
-
-
         Start-Process -FilePath "$PSscriptroot\FortiClientSetup_7.2.3_x64.exe" -ArgumentList '/quiet /norestart' -Wait -WindowStyle Hidden
-  
-  
-  
-  
-
-        function WaitForRegistryKey {
-            param (
-                [string[]]$RegistryPaths,
-                [string]$SoftwareName,
-                [version]$MinimumVersion,
-                [int]$TimeoutSeconds = 120
-            )
-    
-        
-            Write-EnhancedLog -Message "Starting WaitForRegistryKey function" -Level "INFO"
-            Write-EnhancedLog -Message "Checking for $SoftwareName version $MinimumVersion or later" -Level "INFO"
-        
-            $elapsedSeconds = 0
-        
-            try {
-                while ($elapsedSeconds -lt $TimeoutSeconds) {
-                    foreach ($path in $RegistryPaths) {
-                        $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
-        
-                        foreach ($item in $items) {
-                            $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
-                            if ($app.DisplayName -like "*$SoftwareName*") {
-                                $installedVersion = New-Object Version $app.DisplayVersion
-                                if ($installedVersion -ge $MinimumVersion) {
-                                    Write-EnhancedLog -Message "Found $SoftwareName version $installedVersion at $item.PsPath" -Level "INFO"
-                                    return @{
-                                        IsInstalled = $true
-                                        Version     = $app.DisplayVersion
-                                        ProductCode = $app.PSChildName
-                                    }
-                                }
-                            }
-                        }
-                    }
-        
-                    Start-Sleep -Seconds 1
-                    $elapsedSeconds++
-                }
-        
-                Write-EnhancedLog -Message "Timeout reached. $SoftwareName version $MinimumVersion or later not found." -Level "WARNING"
-                return @{ IsInstalled = $false }
-            }
-            catch {
-                Handle-Error -ErrorRecord $_
-            }
-            finally {
-                Write-EnhancedLog -Message "WaitForRegistryKey function completed" -Level "INFO"
-            }
-        }
-        
-
-      
-          
-          
-  
-  
   
         # Define constants for registry paths and minimum required version
         $registryPaths = @(
@@ -488,93 +424,19 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
   
   
   
-  
-  
-  
         # Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$PSScriptroot\CBA_National_SSL_VPN_SAML.reg`"" -Wait
+  
 
-
-
-        
-        function Import-RegistryFilesInScriptRoot {
-            Write-EnhancedLog -Message 'Starting Import-RegistryFilesInScriptRoot function' -Level 'INFO'
-        
-            try {
-                $scriptDirectory = $PSScriptRoot
-                $registryFiles = Get-ChildItem -Path $scriptDirectory -Filter *.reg
-        
-                if ($registryFiles.Count -eq 0) {
-                    Write-EnhancedLog -Message "No registry files found in the directory: $scriptDirectory" -Level 'WARNING'
-                    return
-                }
-        
-                foreach ($registryFile in $registryFiles) {
-                    $registryFilePath = $registryFile.FullName
-        
-                    if (Test-Path $registryFilePath) {
-                        Write-EnhancedLog -Message "Found registry file: $registryFilePath" -Level 'INFO'
-                        Start-Process -FilePath 'reg.exe' -ArgumentList "import `"$registryFilePath`"" -Wait
-                        Write-EnhancedLog -Message "Registry file import process completed for: $registryFilePath" -Level 'INFO'
-        
-                        # Validate the registry keys
-                        Validate-RegistryKeys -RegistryFilePath $registryFilePath
-                    }
-                    else {
-                        Write-EnhancedLog -Message "Registry file not found at path: $registryFilePath" -Level 'ERROR'
-                    }
-                }
-            }
-            catch {
-                Handle-Error -ErrorRecord $_
-            }
-            finally {
-                Write-EnhancedLog -Message 'Import-RegistryFilesInScriptRoot function completed' -Level 'INFO'
-            }
-        }
-        
-        function Validate-RegistryKeys {
-            param (
-                [string]$RegistryFilePath
-            )
-        
-            Write-EnhancedLog -Message "Starting Validate-RegistryKeys function for: $RegistryFilePath" -Level 'INFO'
-        
-            try {
-                $importedKeys = Get-Content -Path $RegistryFilePath | Where-Object { $_ -match '^\[.*\]$' } | ForEach-Object { $_ -replace '^\[|\]$', '' }
-                $importSuccess = $true
-        
-                foreach ($key in $importedKeys) {
-                    if (Test-Path -Path "Registry::$key") {
-                        Write-EnhancedLog -Message "Validated registry key: $key" -Level 'INFO'
-                        Write-EnhancedLog "Validated registry key: $key" -Level 'INFO'
-                    }
-                    else {
-                        Write-EnhancedLog -Message "Failed to validate registry key: $key" -Level 'ERROR'
-                        Write-EnhancedLog "Failed to validate registry key: $key" -Level 'ERROR'
-                        $importSuccess = $false
-                    }
-                }
-        
-                if ($importSuccess) {
-                    Write-EnhancedLog -Message "Successfully validated all registry keys for: $RegistryFilePath" -Level 'INFO'
-                }
-                else {
-                    Write-EnhancedLog -Message "Some registry keys failed to validate for: $RegistryFilePath" -Level 'ERROR'
-                }
-            }
-            catch {
-                Handle-Error -ErrorRecord $_
-            }
-            finally {
-                Write-EnhancedLog -Message 'Validate-RegistryKeys function completed' -Level 'INFO'
-            }
-        }
-        
-        # Example usage of Import-RegistryFilesInScriptRoot function
         # Call the function to import all registry files in the script root
-        Import-RegistryFilesInScriptRoot
 
+        $params = @{
+            Filter   = "*.reg"
+            FilePath = "reg.exe"
+            Args     = "import `"$registryFilePath`""
+        }
 
+        # Call the Import-RegistryFilesInScriptRoot function using splatting
+        Import-RegistryFilesInScriptRoot @params
 
 
         ##*===============================================
@@ -602,10 +464,6 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         Show-InstallationProgress
 
         ## <Perform Pre-Uninstallation tasks here>
-
-
-
-
 
         ##*===============================================
         ##* UNINSTALLATION
@@ -653,12 +511,12 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
                 # Example usage of Uninstall-FortiClientEMSAgentApplication function with splatting
                 $UninstallFortiClientEMSAgentApplicationParams = @{
-                    UninstallKeys = @(
+                    UninstallKeys    = @(
                         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
                         'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
                     )
-                    ApplicationName = '*Forti*'
-                    FilePath = 'MsiExec.exe'
+                    ApplicationName  = '*Forti*'
+                    FilePath         = 'MsiExec.exe'
                     ArgumentTemplate = "/X{ProductId} /quiet /norestart"
                 }
                 Uninstall-FortiClientEMSAgentApplication @UninstallFortiClientEMSAgentApplicationParams
@@ -666,15 +524,215 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
                 
                 # Example usage of Remove-FortiSoftware function with splatting
-                $RemoveFortiSoftwareparams = @{
-                    ScriptRoot       = $PSScriptRoot
-                    SoftwareName     = '*forti*'
-                    MsiZapFileName   = 'MsiZap.Exe'
-                    ArgumentTemplate = 'TW! {IdentifyingNumber}'
+                # $RemoveFortiSoftwareparams = @{
+                #     ScriptRoot       = $PSScriptRoot
+                #     SoftwareName     = '*forti*'
+                #     MsiZapFileName   = 'MsiZap.Exe'
+                #     ArgumentTemplate = 'TW! {IdentifyingNumber}'
+                # }
+                # Remove-FortiSoftware @RemoveFortiSoftwareparams
+
+
+
+
+                Start-Sleep -Seconds 300
+
+                # Define constants for registry paths and the version to exclude
+                $registryPaths = @(
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+                )
+                $targetSoftwareName = "*FortiClient*"
+                $excludedVersion = New-Object Version "7.4.0.1658"
+
+                # Splat parameters
+                $DetectFortiClientEMSInstallationparams = @{
+                    RegistryPaths   = $registryPaths
+                    SoftwareName    = $targetSoftwareName
+                    ExcludedVersion = $excludedVersion
                 }
-                Remove-FortiSoftware @RemoveFortiSoftwareparams
-                
-                
+
+                # Check for FortiClientEMS installation using splatting
+                $installationCheck = Detect-FortiClientEMSInstallation @DetectFortiClientEMSInstallationparams
+
+                # If statement to suspend bitlocker and enable safe mode and create a task for removing FortiClient EMS in safe mode
+                if ($installationCheck.IsInstalled) {
+    
+                    # Example usage of Suspend-BitLockerForDrives function with splatting
+                    $SuspendBitLockerForDrivesparams = @{
+                        # DriveLetters = @("C:", "D:")
+                        DriveLetters = @("C:")
+                    }
+
+                    # Call the Suspend-BitLockerForDrives function using splatting
+                    Suspend-BitLockerForDrives @SuspendBitLockerForDrivesparams
+
+
+                    # Define the parameters for the Detect-SystemMode function
+                    $params = @{
+                        RegistryPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Option'
+                    }
+
+                    # Call the Detect-SystemMode function using splatting
+                    Detect-SystemMode @params
+
+                    # If statement based on the detected system mode
+                    if ($Global:SystemMode -eq "Safe Mode") {
+                        Write-EnhancedLog -Message "System is currently in Safe Mode." -Level "INFO"
+
+                        # Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+
+                        # Example usage of Exit-SafeModeBasedOnDetection function with splatting
+                        $ExitSafeModeBasedOnDetectionparams = @{
+                            RegistryPath     = 'HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Option'
+                            BCDeditPath      = 'bcdedit.exe'
+                            ArgumentTemplate = '/deletevalue {current} safeboot'
+                        }
+
+                        # Call the Exit-SafeModeBasedOnDetection function using splatting
+                        Exit-SafeModeBasedOnDetection @ExitSafeModeBasedOnDetectionparams
+
+                        # Add your actions for Safe Mode here
+                    }
+                    elseif ($Global:SystemMode -eq "Normal Mode") {
+                        Write-EnhancedLog -Message "System is currently in Normal Mode." -Level "INFO"
+                        # Add your actions for Normal Mode here
+
+                        # Example usage of Enter-SafeModeBasedOnDetection function with splatting
+                        $EnterSafeModeBasedOnDetectionparams = @{
+                            RegistryPath     = 'HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Option'
+                            BCDeditPath      = 'bcdedit.exe'
+                            ArgumentTemplate = '/set {current} safeboot network'
+                        }
+
+                        # Call the Enter-SafeModeBasedOnDetection function using splatting
+                        Enter-SafeModeBasedOnDetection @EnterSafeModeBasedOnDetectionparams
+
+
+                        # Define the parameter for the source file path
+                        $CopyFileToPublicAndTempparams = @{
+                            SourceFilePath = "$psscriptroot\fcremove.exe"
+                        }
+
+                        # Call the Copy-FileToPublicAndTemp function using splatting
+                        Copy-FileToPublicAndTemp @CopyFileToPublicAndTempparams
+
+
+                        # Call the function to create the local admin account
+                        # Define the parameters for the function
+                        $localAdminParams = @{
+                            Username = "fcremove"
+                            Password = "fcremove"
+                        }
+
+                        # Call the function with splatted parameters
+                        Create-LocalAdminAccount @localAdminParams
+
+                        # Set batch file to run in Safe Mode
+                        $batchFilePath = "C:\temp\saferemove.bat"
+                        Set-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce" -Name '*!test' -Value $batchFilePath
+
+                        # Configure automatic login
+                        # New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList" -Name "fcremove" -Force
+                        # Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -Value "1"
+                        # Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUserName" -Value "fcremove"
+                        # Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -Value "fcremove"
+                        # Set-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultDomainName" -Value $env:COMPUTERNAME
+
+
+                        # Example usage:
+                        $autoLoginParams = @{
+                            Username = "fcremove"
+                            Password = "fcremove"
+                            Domain   = $env:COMPUTERNAME
+                        }
+                        Set-AutoLogin @autoLoginParams
+
+
+                        # Reboot into Safe Mode
+                        # bcdedit /set { default } safeboot network
+                        # shutdown /r /f /t 00
+
+                        # Create saferemove.bat
+                        $saferemoveContent = @"
+cd c:\temp
+fcremove.exe
+timeout /t 180 /nobreak
+bcdedit /deletevalue {default} safeboot
+
+rem Remove auto login
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /f
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultUserName /f
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /f
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultDomainName /f
+
+
+rem Remove the fcremove local admin account
+net user fcremove /delete
+
+rem Resume BitLocker protection
+manage-bde -protectors -enable C:
+
+timeout /t 60 /nobreak
+
+shutdown /r /f /t 00
+"@
+                        Set-Content -Path "C:\temp\saferemove.bat" -Value $saferemoveContent -Force
+
+
+
+
+                    }
+                    else {
+                        Write-EnhancedLog -Message "System mode could not be detected." -Level "INFO"
+                    }
+            
+
+
+                    $configPath = Join-Path -Path $PSScriptRoot -ChildPath "config.json"
+                    $env:MYMODULE_CONFIG_PATH = $configPath
+
+                    # $params = @{
+                    #     ConfigPath = $configPath
+                    #     ScriptRoot = $PSScriptRoot
+                    #     Path_local = "c:\_MEM"
+                    #     DataFolder = "Data"
+                    #     FileName   = "run-ps-hidden.vbs"
+                    # }
+
+                    # # Call the Create-ScheduledTaskFromConfig function using splatting
+                    # Create-ScheduledTaskFromConfig @params
+
+
+                    # $taskParams = @{
+                    #     ConfigPath = $configPath
+                    #     FileName   = "run-ps-hidden.vbs"
+                    #     Scriptroot = $PSScriptRoot
+                    # }
+
+
+                    # commenting as Scheduled tasks do not work in safe mode
+                    # CreateAndExecuteScheduledTask @taskParams
+
+    
+
+              
+
+
+
+                    # $scriptPath = "C:\Path\To\YourScript.bat"
+                    # $registryPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\MySafeModeScript"
+
+                    # # Create the registry key
+                    # New-Item -Path $registryPath -Force
+
+                    # # Set the default value to the path of the script
+                    # Set-ItemProperty -Path $registryPath -Name "(Default)" -Value $scriptPath
+
+
+
+
+                }                
                 # Example usage of Remove-RegistryPath and Validate-RegistryRemoval functions
                 # Call the function to remove the specified registry path
                 # Remove-RegistryPath -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
@@ -686,7 +744,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
         
                 # Show restart prompt after uninstallation
-                Show-InstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60 -TopMost $true
+                # Show-InstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60 -TopMost $true
             }
             catch {
                 # Write-Log -Message "An error occurred during the uninstallation process: $_" -Severity 3
