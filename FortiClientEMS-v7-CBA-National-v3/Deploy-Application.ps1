@@ -99,7 +99,8 @@ Try {
     ## Set the script execution policy for this process
     Try {
         Set-ExecutionPolicy -ExecutionPolicy 'ByPass' -Scope 'Process' -Force -ErrorAction 'Stop'
-    } Catch {
+    }
+    Catch {
     }
 
     ##*===============================================
@@ -135,7 +136,8 @@ Try {
     ## Variables: Environment
     If (Test-Path -LiteralPath 'variable:HostInvocation') {
         $InvocationInfo = $HostInvocation
-    } Else {
+    }
+    Else {
         $InvocationInfo = $MyInvocation
     }
 
@@ -147,10 +149,12 @@ Try {
         }
         If ($DisableLogging) {
             . $moduleAppDeployToolkitMain -DisableLogging
-        } Else {
+        }
+        Else {
             . $moduleAppDeployToolkitMain
         }
-    } Catch {
+    }
+    Catch {
         If ($mainExitCode -eq 0) {
             [Int32]$mainExitCode = 60008
         }
@@ -158,7 +162,8 @@ Try {
         ## Exit the script, returning the exit code to SCCM
         If (Test-Path -LiteralPath 'variable:HostInvocation') {
             $script:ExitCode = $mainExitCode; Exit
-        } Else {
+        }
+        Else {
             Exit $mainExitCode
         }
     }
@@ -190,7 +195,8 @@ Try {
         function Get-Platform {
             if ($PSVersionTable.PSVersion.Major -ge 7) {
                 return $PSVersionTable.Platform
-            } else {
+            }
+            else {
                 return [System.Environment]::OSVersion.Platform
             }
         }
@@ -199,7 +205,8 @@ Try {
             if ($env:DOCKER_ENV -eq $true) {
                 $global:scriptBasePath = $env:SCRIPT_BASE_PATH
                 $global:modulesBasePath = $env:MODULES_BASE_PATH
-            } else {
+            }
+            else {
                 $global:scriptBasePath = $PSScriptRoot
                 $global:modulesBasePath = "$PSScriptRoot\modules"
                 # $global:modulesBasePath = "c:\code\modules"
@@ -244,9 +251,11 @@ Try {
         $platform = Get-Platform
         if ($platform -eq 'Win32NT' -or $platform -eq [System.PlatformID]::Win32NT) {
             Setup-WindowsEnvironment
-        } elseif ($platform -eq 'Unix' -or $platform -eq [System.PlatformID]::Unix) {
+        }
+        elseif ($platform -eq 'Unix' -or $platform -eq [System.PlatformID]::Unix) {
             Setup-LinuxEnvironment
-        } else {
+        }
+        else {
             throw 'Unsupported operating system'
         }
     }
@@ -299,7 +308,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
         Write-Host "Modules folder path: $ModulesFolderPath"
 
-    } catch {
+    }
+    catch {
         Write-Error $_.Exception.Message
     }
 
@@ -314,7 +324,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         # Ensure-LoggingFunctionExists -LoggingFunctionName "# Write-EnhancedLog"
         # Continue with the rest of the script here
         # exit
-    } catch {
+    }
+    catch {
         Write-Host "Critical error: $_" -ForegroundColor Red
         exit
     }
@@ -438,9 +449,11 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         
                 Write-EnhancedLog -Message "Timeout reached. $SoftwareName version $MinimumVersion or later not found." -Level "WARNING"
                 return @{ IsInstalled = $false }
-            } catch {
+            }
+            catch {
                 Handle-Error -ErrorRecord $_
-            } finally {
+            }
+            finally {
                 Write-EnhancedLog -Message "WaitForRegistryKey function completed" -Level "INFO"
             }
         }
@@ -467,7 +480,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         if ($installationCheck.IsInstalled) {
             # Write-Output "FortiClientVPN version $($installationCheck.Version) or later is installed."
             # exit 0
-        } else {
+        }
+        else {
             # Write-Output "FortiClientVPN version $minimumVersion or later is not installed."
             # exit 1
         }
@@ -504,13 +518,16 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         
                         # Validate the registry keys
                         Validate-RegistryKeys -RegistryFilePath $registryFilePath
-                    } else {
+                    }
+                    else {
                         Write-EnhancedLog -Message "Registry file not found at path: $registryFilePath" -Level 'ERROR'
                     }
                 }
-            } catch {
+            }
+            catch {
                 Handle-Error -ErrorRecord $_
-            } finally {
+            }
+            finally {
                 Write-EnhancedLog -Message 'Import-RegistryFilesInScriptRoot function completed' -Level 'INFO'
             }
         }
@@ -530,7 +547,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                     if (Test-Path -Path "Registry::$key") {
                         Write-EnhancedLog -Message "Validated registry key: $key" -Level 'INFO'
                         Write-EnhancedLog "Validated registry key: $key" -Level 'INFO'
-                    } else {
+                    }
+                    else {
                         Write-EnhancedLog -Message "Failed to validate registry key: $key" -Level 'ERROR'
                         Write-EnhancedLog "Failed to validate registry key: $key" -Level 'ERROR'
                         $importSuccess = $false
@@ -539,12 +557,15 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         
                 if ($importSuccess) {
                     Write-EnhancedLog -Message "Successfully validated all registry keys for: $RegistryFilePath" -Level 'INFO'
-                } else {
+                }
+                else {
                     Write-EnhancedLog -Message "Some registry keys failed to validate for: $RegistryFilePath" -Level 'ERROR'
                 }
-            } catch {
+            }
+            catch {
                 Handle-Error -ErrorRecord $_
-            } finally {
+            }
+            finally {
                 Write-EnhancedLog -Message 'Validate-RegistryKeys function completed' -Level 'INFO'
             }
         }
@@ -567,7 +588,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         If (-not $useDefaultMsi) {
             Show-InstallationPrompt -Message 'You should now see FortiClient EMS v7.2.3 in your task bar' -ButtonRightText 'OK' -Icon Information -NoWait
         }
-    } ElseIf ($deploymentType -ieq 'Uninstall') {
+    }
+    ElseIf ($deploymentType -ieq 'Uninstall') {
         ##*===============================================
         ##* PRE-UNINSTALLATION
         ##*===============================================
@@ -624,200 +646,54 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
                 #here we are dynamically fetching the uninstall string and removing the product
                 # Function to uninstall FortiClient EMS Agent Application
-                function Uninstall-FortiClientEMSAgentApplication {
-                    [CmdletBinding()]
-                    param()
-
-                    begin {
-                        Write-EnhancedLog -Message 'Starting the uninstall process...' -Level 'INFO'
-
-                        $uninstallKeys = @(
-                            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-                            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
-                        )
-                    }
-
-                    process {
-                        try {
-                            $productId = Find-UninstallString -UninstallKeys $uninstallKeys -ApplicationName '*Forti*'
-
-                            if ($null -ne $productId) {
-                                Write-EnhancedLog -Message "Found product ID: $productId" -Level 'INFO'
-                                Invoke-Uninstall -ProductId $productId
-                            } else {
-                                Write-EnhancedLog -Message 'Product ID not found for FortiClientEMSAgent application.' -Level 'WARNING'
-                            }
-                        } catch {
-                            Handle-Error -ErrorRecord $_
-                        }
-                    }
-
-                    end {
-                        Write-EnhancedLog -Message 'Uninstall process completed.' -Level 'INFO'
-                    }
-                }
-
-                # Function to find the uninstall string from the registry
-                function Find-UninstallString {
-                    param (
-                        [string[]]$UninstallKeys,
-                        [string]$ApplicationName
-                    )
-
-                    try {
-                        foreach ($key in $UninstallKeys) {
-                            $items = Get-ChildItem -Path $key -ErrorAction SilentlyContinue
-                            foreach ($item in $items) {
-                                $app = Get-ItemProperty -Path $item.PsPath
-                                if ($app.DisplayName -like $ApplicationName) {
-                                    Write-EnhancedLog -Message "Found application: $($app.DisplayName) with product ID: $($app.PSChildName)" -Level 'INFO'
-                                    return $app.PSChildName.Trim('{}')
-                                }
-                            }
-                        }
-                        Write-EnhancedLog -Message "No matching application found for: $ApplicationName" -Level 'WARNING'
-                    } catch {
-                        Handle-Error -ErrorRecord $_
-                    }
-                    return $null
-                }
-
-                # Function to invoke the uninstallation process
-                function Invoke-Uninstall {
-                    param (
-                        [string]$ProductId
-                    )
-
-                    try {
-                        Write-EnhancedLog -Message 'Starting uninstallation process.' -Level 'INFO'
-
-                        # Construct the MsiExec.exe command
-                        $filePath = 'MsiExec.exe'
-                        $arguments = "/X{$ProductId} /quiet /norestart"
-
-                        Write-EnhancedLog -Message "FilePath: $filePath" -Level 'INFO'
-                        Write-EnhancedLog -Message "Arguments: $arguments" -Level 'INFO'
-
-                        Start-Process -FilePath $filePath -ArgumentList $arguments -Wait -WindowStyle Hidden
-
-                        Write-EnhancedLog -Message "Executed uninstallation with arguments: $arguments" -Level 'INFO'
-                    } catch {
-                        Write-EnhancedLog -Message "An error occurred during the uninstallation process: $($_.Exception.Message)" -Level 'ERROR'
-                        Handle-Error -ErrorRecord $_
-                    }
-                }
-
+             
                 # Execute the uninstallation process
                 # Uninstall-FortiClientEMSAgentApplication
+              
 
-
-
-                function Remove-FortiSoftware {
-                 
-                    Write-EnhancedLog -Message 'Starting Remove-FortiSoftware function' -Level 'INFO'
-                
-                    try {
-                        $msiZapPath = Join-Path -Path $PSScriptroot -ChildPath "MsiZap.Exe"
-                        
-                        if (Test-Path $msiZapPath) {
-                            $identifyingNumber = Get-CimInstance -ClassName Win32_Product | Where-Object { $_.Name -like '*forti*' } | Select-Object -ExpandProperty IdentifyingNumber
-                
-                            if ($identifyingNumber) {
-                                Write-EnhancedLog -Message "Found software with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
-                                Write-EnhancedLog -Message "Executing MsiZap with IdentifyingNumber: $identifyingNumber" -Level 'INFO'
-                                Start-Process -FilePath $msiZapPath -ArgumentList "TW! $identifyingNumber" -Verb RunAs -Wait
-                                Write-EnhancedLog -Message 'MsiZap process completed' -Level 'INFO'
-                            } else {
-                                Write-EnhancedLog -Message 'No matching software found' -Level 'WARNING'
-                            }
-                        } else {
-                            Write-EnhancedLog -Message "MsiZap.exe not found at path: $msiZapPath" -Level 'ERROR'
-                        }
-                    } catch {
-                        Handle-Error -ErrorRecord $_
-                    } finally {
-                        Write-EnhancedLog -Message 'Remove-FortiSoftware function completed' -Level 'INFO'
-                    }
-                }
-                
-                # Example usage of Remove-FortiSoftware function
-                 # Call the function to remove Forti software
-                Remove-FortiSoftware
-      
-
-
-                function Remove-RegistryPath {
-                    param (
-                        [string]$RegistryPath
+                # Example usage of Uninstall-FortiClientEMSAgentApplication function with splatting
+                $UninstallFortiClientEMSAgentApplicationParams = @{
+                    UninstallKeys = @(
+                        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
                     )
-                
-                    Write-EnhancedLog -Message "Starting Remove-RegistryPath function for: $RegistryPath" -Level 'INFO'
-                
-                    try {
-                        if (Test-Path -Path "Registry::$RegistryPath") {
-                            Remove-Item -Path "Registry::$RegistryPath" -Recurse -Force
-                            Write-EnhancedLog -Message "Successfully removed registry path: $RegistryPath" -Level 'INFO'
-                            Write-Output "Successfully removed registry path: $RegistryPath"
-                        } else {
-                            Write-EnhancedLog -Message "Registry path not found: $RegistryPath" -Level 'WARNING'
-                            Write-Output "Registry path not found: $RegistryPath"
-                        }
-                    } catch {
-                        Handle-Error -ErrorRecord $_
-                    } finally {
-                        Write-EnhancedLog -Message 'Remove-RegistryPath function completed' -Level 'INFO'
-                    }
+                    ApplicationName = '*Forti*'
+                    FilePath = 'MsiExec.exe'
+                    ArgumentTemplate = "/X{ProductId} /quiet /norestart"
                 }
+                Uninstall-FortiClientEMSAgentApplication @UninstallFortiClientEMSAgentApplicationParams
+
+
                 
-                function Validate-RegistryRemoval {
-                    param (
-                        [string]$RegistryPath
-                    )
-                
-                    Write-EnhancedLog -Message "Starting Validate-RegistryRemoval function for: $RegistryPath" -Level 'INFO'
-                
-                    try {
-                        if (Test-Path -Path "Registry::$RegistryPath") {
-                            Write-EnhancedLog -Message "Registry path still exists: $RegistryPath" -Level 'ERROR'
-                            Write-Output "Registry path still exists: $RegistryPath"
-                        } else {
-                            Write-EnhancedLog -Message "Registry path successfully removed: $RegistryPath" -Level 'INFO'
-                            Write-Output "Registry path successfully removed: $RegistryPath"
-                        }
-                    } catch {
-                        Handle-Error -ErrorRecord $_
-                    } finally {
-                        Write-EnhancedLog -Message 'Validate-RegistryRemoval function completed' -Level 'INFO'
-                    }
+                # Example usage of Remove-FortiSoftware function with splatting
+                $RemoveFortiSoftwareparams = @{
+                    ScriptRoot       = $PSScriptRoot
+                    SoftwareName     = '*forti*'
+                    MsiZapFileName   = 'MsiZap.Exe'
+                    ArgumentTemplate = 'TW! {IdentifyingNumber}'
                 }
+                Remove-FortiSoftware @RemoveFortiSoftwareparams
+                
                 
                 # Example usage of Remove-RegistryPath and Validate-RegistryRemoval functions
                 # Call the function to remove the specified registry path
-                Remove-RegistryPath -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
+                # Remove-RegistryPath -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
                 
                 # Call the function to validate the removal of the specified registry path
-                Validate-RegistryRemoval -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
-                
-
-
-
-
-
-
-
-
-
+                # Validate-RegistryRemoval -RegistryPath "HKEY_LOCAL_MACHINE\SOFTWARE\Fortinet"
 
                 # Restart-Computer -Force
 
         
                 # Show restart prompt after uninstallation
                 Show-InstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60 -TopMost $true
-            } catch {
+            }
+            catch {
                 # Write-Log -Message "An error occurred during the uninstallation process: $_" -Severity 3
                 # Exit-Script -ExitCode 1
             }
-        } else {
+        }
+        else {
             # Write-Log -Message "Unexpected response or prompt timeout." -Severity 3
             # Exit-Script -ExitCode 1
         }
@@ -834,7 +710,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
         ## <Perform Post-Uninstallation tasks here>
 
 
-    } ElseIf ($deploymentType -ieq 'Repair') {
+    }
+    ElseIf ($deploymentType -ieq 'Repair') {
         ##*===============================================
         ##* PRE-REPAIR
         ##*===============================================
@@ -877,7 +754,8 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
     ## Call the Exit-Script function to perform final cleanup operations
     Exit-Script -ExitCode $mainExitCode
-} Catch {
+}
+Catch {
     [Int32]$mainExitCode = 60001
     [String]$mainErrorMessage = "$(Resolve-Error)"
     Write-Log -Message $mainErrorMessage -Severity 3 -Source $deployAppScriptFriendlyName
