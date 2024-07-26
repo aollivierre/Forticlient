@@ -535,7 +535,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
 
 
-                Start-Sleep -Seconds 300
+             
 
                 # Define constants for registry paths and the version to exclude
                 $registryPaths = @(

@@ -30,6 +30,8 @@ function Uninstall-FortiClientEMSAgentApplication {
                     ArgumentTemplate = $ArgumentTemplate
                 }
                 Invoke-Uninstall @invokeParams
+                #wait a bit before going into detection/validation
+                Start-Sleep -Seconds 30
             } else {
                 Write-EnhancedLog -Message 'Product ID not found for FortiClientEMSAgent application.' -Level 'WARNING'
             }

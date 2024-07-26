@@ -1,84 +1,100 @@
+# function SetupNewTaskEnvironment {
+#     <#
+#     .SYNOPSIS
+#     Sets up a new task environment for scheduled task execution.
 
-function SetupNewTaskEnvironment {
+#     .DESCRIPTION
+#     This function prepares the environment for a new scheduled task. It creates a specified directory, determines the PowerShell script path based on the script mode, generates a VBScript to run the PowerShell script hidden, and finally registers the scheduled task with the provided parameters. It utilizes enhanced logging for feedback and error handling to manage potential issues.
 
-    <#
-.SYNOPSIS
-Sets up a new task environment for scheduled task execution.
+#     .PARAMETER Path_PR
+#     The path where the task's scripts and support files will be stored.
 
-.DESCRIPTION
-This function prepares the environment for a new scheduled task. It creates a specified directory, determines the PowerShell script path based on the script mode, generates a VBScript to run the PowerShell script hidden, and finally registers the scheduled task with the provided parameters. It utilizes enhanced logging for feedback and error handling to manage potential issues.
+#     .PARAMETER schtaskName
+#     The name of the scheduled task to be created.
 
-.PARAMETER Path_PR
-The path where the task's scripts and support files will be stored.
+#     .PARAMETER schtaskDescription
+#     A description for the scheduled task.
 
-.PARAMETER schtaskName
-The name of the scheduled task to be created.
+#     .PARAMETER ScriptMode
+#     Determines the script type to be executed ("Remediation" or "PackageName").
 
-.PARAMETER schtaskDescription
-A description for the scheduled task.
+#     .PARAMETER PackageExecutionContext
+#     The context in which the package should execute.
 
-.PARAMETER ScriptMode
-Determines the script type to be executed ("Remediation" or "PackageName").
+#     .PARAMETER RepetitionInterval
+#     The interval at which the task should repeat.
 
-.EXAMPLE
-SetupNewTaskEnvironment -Path_PR "C:\Tasks\MyTask" -schtaskName "MyScheduledTask" -schtaskDescription "This task does something important" -ScriptMode "Remediation"
+#     .PARAMETER Path_VBShiddenPS
+#     The path to the VBScript file that runs the PowerShell script hidden.
 
-This example sets up the environment for a scheduled task named "MyScheduledTask" with a specific description, intended for remediation purposes.
-#>
+#     .EXAMPLE
+#     SetupNewTaskEnvironment -Path_PR "C:\Tasks\MyTask" -schtaskName "MyScheduledTask" -schtaskDescription "This task does something important" -ScriptMode "Remediation" -PackageExecutionContext "User" -RepetitionInterval "PT1H" -Path_VBShiddenPS "C:\Tasks\MyTask\run-ps-hidden.vbs"
 
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        # [ValidateScript({Test-Path $_ -PathType 'Container'})]
-        [string]$Path_PR,
+#     This example sets up the environment for a scheduled task named "MyScheduledTask" with a specific description, intended for remediation purposes.
+#     #>
 
-        [Parameter(Mandatory = $true)]
-        [string]$schtaskName,
+#     [CmdletBinding()]
+#     param (
+#         [Parameter(Mandatory = $true)]
+#         [string]$Path_PR,
 
-        [Parameter(Mandatory = $true)]
-        [string]$schtaskDescription,
+#         [Parameter(Mandatory = $true)]
+#         [string]$schtaskName,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateSet("Remediation", "PackageName")]
-        [string]$ScriptMode,
+#         [Parameter(Mandatory = $true)]
+#         [string]$schtaskDescription,
 
-        [Parameter(Mandatory = $true)]
-        [string]$PackageExecutionContext
+#         [Parameter(Mandatory = $true)]
+#         [ValidateSet("Remediation", "PackageName")]
+#         [string]$ScriptMode,
 
-    )
+#         [Parameter(Mandatory = $true)]
+#         [string]$PackageExecutionContext,
 
-    try {
-        Write-EnhancedLog -Message "Setting up new task environment at $Path_PR." -Level "INFO" -ForegroundColor Cyan
+#         [Parameter(Mandatory = $true)]
+#         [string]$RepetitionInterval,
 
-        # New-Item -Path $Path_PR -ItemType Directory -Force | Out-Null
-        # Write-EnhancedLog -Message "Created new directory at $Path_PR" -Level "INFO" -ForegroundColor Green
+#         [Parameter(Mandatory = $true)]
+#         [string]$Path_VBShiddenPS
+#     )
 
-        $Path_PSscript = switch ($ScriptMode) {
-            "Remediation" { Join-Path $Path_PR "remediation.ps1" }
-            "PackageName" { Join-Path $Path_PR "$PackageName.ps1" }
-            Default { throw "Invalid ScriptMode: $ScriptMode. Expected 'Remediation' or 'PackageName'." }
-        }
+#     begin {
+#         Write-EnhancedLog -Message 'Starting SetupNewTaskEnvironment function' -Level 'INFO'
+#         Log-Params -Params $PSCmdlet.MyInvocation.BoundParameters
+#     }
 
-        # $Path_vbs = Create-VBShiddenPS -Path_local $Path_PR
-        $Path_vbs = $global:Path_VBShiddenPS
+#     process {
+#         try {
+#             Write-EnhancedLog -Message "Setting up new task environment at $Path_PR." -Level "INFO" -ForegroundColor Cyan
 
-        $scheduledTaskParams = @{
-            schtaskName             = $schtaskName
-            schtaskDescription      = $schtaskDescription
-            Path_vbs                = $Path_vbs
-            Path_PSscript           = $Path_PSscript
-            PackageExecutionContext = $PackageExecutionContext
-        }
+#             # Determine the PowerShell script path based on ScriptMode
+#             $Path_PSscript = switch ($ScriptMode) {
+#                 "Remediation" { Join-Path $Path_PR "remediation.ps1" }
+#                 "PackageName" { Join-Path $Path_PR "$PackageName.ps1" }
+#                 Default { throw "Invalid ScriptMode: $ScriptMode. Expected 'Remediation' or 'PackageName'." }
+#             }
 
+#             $scheduledTaskParams = @{
+#                 schtaskName             = $schtaskName
+#                 schtaskDescription      = $schtaskDescription
+#                 Path_vbs                = $Path_VBShiddenPS
+#                 Path_PSscript           = $Path_PSscript
+#                 PackageExecutionContext = $PackageExecutionContext
+#                 RepetitionInterval      = $RepetitionInterval
+#             }
 
-        Log-params @{scheduledTaskParams = $scheduledTaskParams}
+#             Log-Params -Params $scheduledTaskParams
 
-        MyRegisterScheduledTask @scheduledTaskParams
+#             MyRegisterScheduledTask @scheduledTaskParams
 
-        Write-EnhancedLog -Message "Scheduled task $schtaskName with description '$schtaskDescription' registered successfully." -Level "INFO" -ForegroundColor Green
-    }
-    catch {
-        Write-EnhancedLog -Message "An error occurred during setup of new task environment: $_" -Level "ERROR" -ForegroundColor Red
-        throw $_
-    }
-}
+#             Write-EnhancedLog -Message "Scheduled task $schtaskName with description '$schtaskDescription' registered successfully." -Level "INFO"
+#         } catch {
+#             Write-EnhancedLog -Message "An error occurred during setup of new task environment: $_" -Level "ERROR"
+#             Handle-Error -ErrorRecord $_
+#         }
+#     }
+
+#     end {
+#         Write-EnhancedLog -Message 'SetupNewTaskEnvironment function completed' -Level 'INFO'
+#     }
+# }
