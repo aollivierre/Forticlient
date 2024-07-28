@@ -524,13 +524,13 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
                 
                 # Example usage of Remove-FortiSoftware function with splatting
-                # $RemoveFortiSoftwareparams = @{
-                #     ScriptRoot       = $PSScriptRoot
-                #     SoftwareName     = '*forti*'
-                #     MsiZapFileName   = 'MsiZap.Exe'
-                #     ArgumentTemplate = 'TW! {IdentifyingNumber}'
-                # }
-                # Remove-FortiSoftware @RemoveFortiSoftwareparams
+                $RemoveFortiSoftwareparams = @{
+                    ScriptRoot       = $PSScriptRoot
+                    SoftwareName     = '*forti*'
+                    MsiZapFileName   = 'MsiZap.Exe'
+                    ArgumentTemplate = 'TW! {IdentifyingNumber}'
+                }
+                Remove-FortiSoftware @RemoveFortiSoftwareparams
 
 
 
@@ -558,6 +558,19 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
                 # If statement to suspend bitlocker and enable safe mode and create a task for removing FortiClient EMS in safe mode
                 if ($installationCheck.IsInstalled) {
     
+
+
+                    # Example usage of Remove-FortiSoftware function with splatting
+                    # $RemoveFortiSoftwareparams = @{
+                    #     ScriptRoot       = $PSScriptRoot
+                    #     SoftwareName     = '*forti*'
+                    #     MsiZapFileName   = 'MsiZap.Exe'
+                    #     ArgumentTemplate = 'TW! {IdentifyingNumber}'
+                    # }
+                    # Remove-FortiSoftware @RemoveFortiSoftwareparams
+
+
+
                     # Example usage of Suspend-BitLockerForDrives function with splatting
                     $SuspendBitLockerForDrivesparams = @{
                         # DriveLetters = @("C:", "D:")

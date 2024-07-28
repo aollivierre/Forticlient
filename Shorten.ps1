@@ -8,7 +8,7 @@ $secrets = Import-PowerShellDataFile -Path $secretsPath
 $bitlyToken = $secrets.BitlyToken
 
 # The URL you want to shorten
-$longUrl = "https://raw.githubusercontent.com/aollivierre/Forticlient/main/setup.ps1"
+$longUrl = "https://raw.githubusercontent.com/aollivierre/Forticlient/main/Setup.ps1"
 
 # The Bitly API endpoint for shortening URLs
 $bitlyApiUrl = "https://api-ssl.bitly.com/v4/shorten"

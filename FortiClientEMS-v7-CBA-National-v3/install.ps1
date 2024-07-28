@@ -29,9 +29,29 @@ function Initialize-Environment {
         }
         else {
             $global:scriptBasePath = $PSScriptRoot
-            $global:modulesBasePath = "$PSScriptRoot\modules"
-            # $global:modulesBasePath = "c:\code\modules"
+            $global:modulesBasePath = "C:\code\modules"
+            if (-Not (Test-Path $global:modulesBasePath)) {
+                $global:modulesBasePath = "$PSScriptRoot\modules"
+            }
+            if (-Not (Test-Path $global:modulesBasePath)) {
+                $global:modulesBasePath = "$PSScriptRoot\modules"
+                Download-Modules -destinationPath $global:modulesBasePath
+            }
         }
+    }
+
+    function Download-Modules {
+        param (
+            [string]$repoUrl = "https://github.com/aollivierre/modules/archive/refs/heads/main.zip",
+            [string]$destinationPath
+        )
+        
+        Write-Host "Downloading modules from GitHub..."
+        $zipPath = "$env:TEMP\modules.zip"
+        Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $destinationPath -Force
+        Remove-Item -Path $zipPath
+        Write-Host "Modules downloaded and extracted to $destinationPath"
     }
 
     function Setup-WindowsEnvironment {
@@ -39,12 +59,13 @@ function Initialize-Environment {
         Setup-GlobalPaths
 
         # Construct the paths dynamically using the base paths
-        $global:modulePath = Join-Path -Path $modulesBasePath -ChildPath $WindowsModulePath
+        $modulePath = Join-Path -Path $global:modulesBasePath -ChildPath $WindowsModulePath
+
+        $global:modulePath = $modulePath
         $global:AOscriptDirectory = Join-Path -Path $scriptBasePath -ChildPath "Win32Apps-DropBox"
         $global:directoryPath = Join-Path -Path $scriptBasePath -ChildPath "Win32Apps-DropBox"
         $global:Repo_Path = $scriptBasePath
         $global:Repo_winget = "$Repo_Path\Win32Apps-DropBox"
-
 
         # Import the module using the dynamically constructed path
         Import-Module -Name $global:modulePath -Verbose -Force:$true -Global:$true
