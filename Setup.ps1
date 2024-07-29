@@ -50,6 +50,7 @@ Add-Step "Extracting Forticlient repository"
 Add-Step "Extracting all ZIP files recursively"
 Add-Step "Installing Visual C++ Redistributable (x64 and x86)"
 Add-Step "Executing Uninstall.ps1 script"
+Add-Step "Executing Scheduler.ps1 script"
 
 # Calculate total steps dynamically
 $totalSteps = $global:steps.Count
@@ -137,9 +138,31 @@ try {
     } else {
         Write-Error "No folder found with name containing 'FortiClientEMS'."
     }
+
+
+      # Step 10: Executing Scheduler.ps1 script
+      Log-Step
+      $deployFolder = Get-ChildItem -Path $extractPath -Recurse -Directory | Where-Object { $_.Name -like '*FortiClientVPN*' }
+      if ($deployFolder) {
+          $SchedulerScript = Get-ChildItem -Path $deployFolder.FullName -Recurse -Filter 'Scheduler.ps1' | Select-Object -First 1
+          if ($SchedulerScript) {
+              Write-Host "Executing Scheduler.ps1..."
+              & powershell.exe -File $SchedulerScript.FullName -Wait
+              Write-Host "Scheduler.ps1 execution complete."
+          } else {
+              Write-Error "Scheduler.ps1 not found."
+          }
+      } else {
+          Write-Error "No folder found with name containing 'FortiClientEMS'."
+      }
+
 } catch {
     # Capture the error details
     $errorDetails = $_ | Out-String
     Write-Host "An error occurred: $errorDetails" -ForegroundColor Red
     throw
 }
+
+
+
+

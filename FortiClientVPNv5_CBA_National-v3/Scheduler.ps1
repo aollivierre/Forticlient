@@ -217,16 +217,17 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
 # ################################################################################################################################
 
-# Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
 
-# Define the path to the PowerShell executable
-$powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 
-# Define the path to the deploy-application.ps1 script
-$scriptPath = "$PSScriptRoot\deploy-application.ps1"
+#right before rebooting we will schedule our install script (which is our script2 or our post-reboot script to run automatically at startup under the SYSTEM account)
+# here I need to pass these in the config file (JSON or PSD1) or here in the splat but I need to have it outside of the function
 
-# Define the arguments for the script
-$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "UnInstall" -DeployMode "Interactive"'
 
-# Start the process without hiding the window
-Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait
+$schedulerconfigPath = Join-Path -Path $PSScriptRoot -ChildPath "config.psd1"
+$taskParams = @{
+    ConfigPath = $schedulerconfigPath
+    FileName   = "run-ps-hidden.vbs"
+    Scriptroot = $PSScriptRoot
+}
+
+CreateAndExecuteScheduledTask @taskParams

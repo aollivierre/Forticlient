@@ -1,11 +1,24 @@
 # Read configuration from the JSON file
 # Assign values from JSON to variables
 
+#################################################################################################################################
+################################################# START VARIABLES ###############################################################
+#################################################################################################################################
+
 # Read configuration from the JSON file
 $configPath = Join-Path -Path $PSScriptRoot -ChildPath "config.json"
 $env:MYMODULE_CONFIG_PATH = $configPath
 
 $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
+
+# Assign values from JSON to variables
+$PackageName = $config.PackageName
+$PackageUniqueGUID = $config.PackageUniqueGUID
+$Version = $config.Version
+$PackageExecutionContext = $config.PackageExecutionContext
+$RepetitionInterval = $config.RepetitionInterval
+$ScriptMode = $config.ScriptMode
+
 
 function Initialize-Environment {
     param (
@@ -176,16 +189,29 @@ catch {
 Write-Host "Starting to call Import-LatestModulesLocalRepository..."
 Import-LatestModulesLocalRepository -ModulesFolderPath $ModulesFolderPath -ScriptPath $PSScriptRoot
 
+################################################################################################################################
+################################################################################################################################
+################################################################################################################################
 ###############################################################################################################################
 ############################################### END MODULE LOADING ############################################################
 ###############################################################################################################################
+
 try {
-    # Ensure-LoggingFunctionExists -LoggingFunctionName "# Write-EnhancedLog"
+    $initResult = Initialize-ScriptAndLogging
+    Write-Host "Initialization successful. Log file path: $($initResult.LogFile)" -ForegroundColor Green
+} catch {
+    Write-Host "Initialization failed: $_" -ForegroundColor Red
+}
+
+
+try {
+    Ensure-LoggingFunctionExists -LoggingFunctionName "Write-EnhancedLog"
     # Continue with the rest of the script here
     # exit
 }
 catch {
     Write-Host "Critical error: $_" -ForegroundColor Red
+    Handle-Error $_.
     exit
 }
 
@@ -195,11 +221,6 @@ catch {
 
 # Setup logging
 Write-EnhancedLog -Message "Script Started" -Level "INFO"
-
-################################################################################################################################
-################################################################################################################################
-################################################################################################################################
-
 
 # ################################################################################################################################
 # ############### CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ############################
@@ -217,16 +238,49 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
 # ################################################################################################################################
 
-# Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
 
-# Define the path to the PowerShell executable
-$powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+###########################################################################################################################
+#############################################STARTING THE MAIN SCHEDULED TASK LOGIC HERE###################################
+##########################################################################################################################
 
-# Define the path to the deploy-application.ps1 script
-$scriptPath = "$PSScriptRoot\deploy-application.ps1"
+$global:Path_local = Set-LocalPathBasedOnContext
 
-# Define the arguments for the script
-$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "UnInstall" -DeployMode "Interactive"'
+Write-EnhancedLog -Message "calling Initialize-ScriptVariables" -Level "INFO" -ForegroundColor ([ConsoleColor]::Green)
 
-# Start the process without hiding the window
-Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait
+# Invocation of the function and storing returned hashtable in a variable
+
+# Call Initialize-ScriptVariables with splatting
+$InitializeScriptVariablesParams = @{
+    PackageName             = $PackageName
+    PackageUniqueGUID       = $PackageUniqueGUID
+    Version                 = $Version
+    ScriptMode              = $ScriptMode
+    PackageExecutionContext = $PackageExecutionContext
+    RepetitionInterval      = $RepetitionInterval
+}
+
+$initializationInfo = Initialize-ScriptVariables @InitializeScriptVariablesParams
+
+$initializationInfo
+
+$global:PackageName = $initializationInfo['PackageName']
+$global:PackageUniqueGUID = $initializationInfo['PackageUniqueGUID']
+$global:Version = $initializationInfo['Version']
+$global:ScriptMode = $initializationInfo['ScriptMode']
+$global:Path_local = $initializationInfo['Path_local']
+$global:Path_PR = $initializationInfo['Path_PR']
+$global:schtaskName = $initializationInfo['schtaskName']
+$global:schtaskDescription = $initializationInfo['schtaskDescription']
+$global:PackageExecutionContext = $initializationInfo['PackageExecutionContext']
+$global:RepetitionInterval = $initializationInfo['RepetitionInterval']
+
+
+
+# Unregister the scheduled task with logging
+Unregister-ScheduledTaskWithLogging -TaskName $schtaskName
+
+# Remove the directory with logging
+Remove-ScheduledTaskFilesWithLogging -Path $Path_PR
+
+
+Stop-Transcript

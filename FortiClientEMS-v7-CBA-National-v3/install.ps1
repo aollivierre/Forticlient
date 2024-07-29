@@ -7,6 +7,9 @@ $env:MYMODULE_CONFIG_PATH = $configPath
 
 $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
 
+
+
+
 function Initialize-Environment {
     param (
         [string]$WindowsModulePath = "EnhancedBoilerPlateAO\2.0.0\EnhancedBoilerPlateAO.psm1",
@@ -16,8 +19,7 @@ function Initialize-Environment {
     function Get-Platform {
         if ($PSVersionTable.PSVersion.Major -ge 7) {
             return $PSVersionTable.Platform
-        }
-        else {
+        } else {
             return [System.Environment]::OSVersion.Platform
         }
     }
@@ -45,12 +47,25 @@ function Initialize-Environment {
             [string]$repoUrl = "https://github.com/aollivierre/modules/archive/refs/heads/main.zip",
             [string]$destinationPath
         )
-        
-        Write-Host "Downloading modules from GitHub..."
+
+        $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+        $tempExtractPath = "$env:TEMP\modules-$timestamp"
         $zipPath = "$env:TEMP\modules.zip"
+
+        Write-Host "Downloading modules from GitHub..."
         Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
-        Expand-Archive -Path $zipPath -DestinationPath $destinationPath -Force
+        Expand-Archive -Path $zipPath -DestinationPath $tempExtractPath -Force
         Remove-Item -Path $zipPath
+
+        $extractedFolder = Join-Path -Path $tempExtractPath -ChildPath "modules-main"
+        if (Test-Path $extractedFolder) {
+            Write-Host "Copying extracted modules to $destinationPath"
+            robocopy $extractedFolder $destinationPath /E
+            Remove-Item -Path $tempExtractPath -Recurse -Force
+        }
+
+        # $DBG
+
         Write-Host "Modules downloaded and extracted to $destinationPath"
     }
 
@@ -93,11 +108,9 @@ function Initialize-Environment {
     $platform = Get-Platform
     if ($platform -eq 'Win32NT' -or $platform -eq [System.PlatformID]::Win32NT) {
         Setup-WindowsEnvironment
-    }
-    elseif ($platform -eq 'Unix' -or $platform -eq [System.PlatformID]::Unix) {
+    } elseif ($platform -eq 'Unix' -or $platform -eq [System.PlatformID]::Unix) {
         Setup-LinuxEnvironment
-    }
-    else {
+    } else {
         throw "Unsupported operating system"
     }
 }
@@ -105,6 +118,10 @@ function Initialize-Environment {
 # Call the function to initialize the environment
 Initialize-Environment
 
+
+
+
+$DBG
 
 # Example usage of global variables outside the function
 Write-Output "Global variables set by Initialize-Environment:"
@@ -147,8 +164,16 @@ Write-Host "Starting to call Get-ModulesFolderPath..."
 try {
   
     # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
+    # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
+
+    # Check if C:\code\modules exists
+if (Test-Path "C:\code\modules") {
+    $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
+} else {
     $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
-    Write-host "Modules folder path: $ModulesFolderPath"
+}
+
+Write-Host "Modules Folder Path: $ModulesFolderPath"
 
 }
 catch {

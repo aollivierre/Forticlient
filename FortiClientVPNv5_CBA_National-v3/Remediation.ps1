@@ -29,42 +29,9 @@ function Initialize-Environment {
         }
         else {
             $global:scriptBasePath = $PSScriptRoot
-            $global:modulesBasePath = "C:\code\modules"
-            if (-Not (Test-Path $global:modulesBasePath)) {
-                $global:modulesBasePath = "$PSScriptRoot\modules"
-            }
-            if (-Not (Test-Path $global:modulesBasePath)) {
-                $global:modulesBasePath = "$PSScriptRoot\modules"
-                Download-Modules -destinationPath $global:modulesBasePath
-            }
+            $global:modulesBasePath = "$PSScriptRoot\modules"
+            # $global:modulesBasePath = "c:\code\modules"
         }
-    }
-
-    function Download-Modules {
-        param (
-            [string]$repoUrl = "https://github.com/aollivierre/modules/archive/refs/heads/main.zip",
-            [string]$destinationPath
-        )
-
-        $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-        $tempExtractPath = "$env:TEMP\modules-$timestamp"
-        $zipPath = "$env:TEMP\modules.zip"
-
-        Write-Host "Downloading modules from GitHub..."
-        Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
-        Expand-Archive -Path $zipPath -DestinationPath $tempExtractPath -Force
-        Remove-Item -Path $zipPath
-
-        $extractedFolder = Join-Path -Path $tempExtractPath -ChildPath "modules-main"
-        if (Test-Path $extractedFolder) {
-            Write-Host "Copying extracted modules to $destinationPath"
-            robocopy $extractedFolder $destinationPath /E
-            Remove-Item -Path $tempExtractPath -Recurse -Force
-        }
-
-        # $DBG
-
-        Write-Host "Modules downloaded and extracted to $destinationPath"
     }
 
     function Setup-WindowsEnvironment {
@@ -72,13 +39,12 @@ function Initialize-Environment {
         Setup-GlobalPaths
 
         # Construct the paths dynamically using the base paths
-        $modulePath = Join-Path -Path $global:modulesBasePath -ChildPath $WindowsModulePath
-
-        $global:modulePath = $modulePath
+        $global:modulePath = Join-Path -Path $modulesBasePath -ChildPath $WindowsModulePath
         $global:AOscriptDirectory = Join-Path -Path $scriptBasePath -ChildPath "Win32Apps-DropBox"
         $global:directoryPath = Join-Path -Path $scriptBasePath -ChildPath "Win32Apps-DropBox"
         $global:Repo_Path = $scriptBasePath
         $global:Repo_winget = "$Repo_Path\Win32Apps-DropBox"
+
 
         # Import the module using the dynamically constructed path
         Import-Module -Name $global:modulePath -Verbose -Force:$true -Global:$true
@@ -119,7 +85,6 @@ function Initialize-Environment {
 Initialize-Environment
 
 
-
 # Example usage of global variables outside the function
 Write-Output "Global variables set by Initialize-Environment:"
 Write-Output "scriptBasePath: $scriptBasePath"
@@ -155,17 +120,14 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 #>
 
 
+Write-Host "Starting to call Get-ModulesFolderPath..."
+
+# Store the outcome in $ModulesFolderPath
 try {
-
-    # Check if C:\code\modules exists
-    if (Test-Path "C:\code\modules") {
-        $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
-    }
-    else {
-        $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
-    }
-
-    Write-Host "Modules Folder Path: $ModulesFolderPath"
+  
+    # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
+    $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
+    Write-host "Modules folder path: $ModulesFolderPath"
 
 }
 catch {
@@ -217,7 +179,8 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
 # ################################################################################################################################
 
-# Start-Process -FilePath "$PSScriptRoot\Deploy-Application.exe" -ArgumentList "-DeploymentType `"Uninstall`" -DeployMode `"Interactive`"" -Wait -WindowStyle Hidden
+
+
 
 # Define the path to the PowerShell executable
 $powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -226,7 +189,7 @@ $powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.ex
 $scriptPath = "$PSScriptRoot\deploy-application.ps1"
 
 # Define the arguments for the script
-$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "UnInstall" -DeployMode "Interactive"'
+$arguments = '-NoExit -ExecutionPolicy Bypass -File "' + $scriptPath + '" -DeploymentType "Install" -DeployMode "Interactive"'
 
 # Start the process without hiding the window
 Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait

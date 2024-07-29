@@ -175,20 +175,19 @@ Try {
     ##*===============================================
 
 
-
     # Read configuration from the JSON file
     # Assign values from JSON to variables
 
     # Read configuration from the JSON file
-    $configPath = Join-Path -Path $PSScriptRoot -ChildPath 'config.json'
+    $configPath = Join-Path -Path $PSScriptRoot -ChildPath "config.json"
     $env:MYMODULE_CONFIG_PATH = $configPath
 
     $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
 
     function Initialize-Environment {
         param (
-            [string]$WindowsModulePath = 'EnhancedBoilerPlateAO\2.0.0\EnhancedBoilerPlateAO.psm1',
-            [string]$LinuxModulePath = '/usr/src/code/Modules/EnhancedBoilerPlateAO/2.0.0/EnhancedBoilerPlateAO.psm1'
+            [string]$WindowsModulePath = "EnhancedBoilerPlateAO\2.0.0\EnhancedBoilerPlateAO.psm1",
+            [string]$LinuxModulePath = "/usr/src/code/Modules/EnhancedBoilerPlateAO/2.0.0/EnhancedBoilerPlateAO.psm1"
         )
 
         function Get-Platform {
@@ -207,9 +206,42 @@ Try {
             }
             else {
                 $global:scriptBasePath = $PSScriptRoot
-                $global:modulesBasePath = "$PSScriptRoot\modules"
-                # $global:modulesBasePath = "c:\code\modules"
+                $global:modulesBasePath = "C:\code\modules"
+                if (-Not (Test-Path $global:modulesBasePath)) {
+                    $global:modulesBasePath = "$PSScriptRoot\modules"
+                }
+                if (-Not (Test-Path $global:modulesBasePath)) {
+                    $global:modulesBasePath = "$PSScriptRoot\modules"
+                    Download-Modules -destinationPath $global:modulesBasePath
+                }
             }
+        }
+
+        function Download-Modules {
+            param (
+                [string]$repoUrl = "https://github.com/aollivierre/modules/archive/refs/heads/main.zip",
+                [string]$destinationPath
+            )
+
+            $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+            $tempExtractPath = "$env:TEMP\modules-$timestamp"
+            $zipPath = "$env:TEMP\modules.zip"
+
+            Write-Host "Downloading modules from GitHub..."
+            Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
+            Expand-Archive -Path $zipPath -DestinationPath $tempExtractPath -Force
+            Remove-Item -Path $zipPath
+
+            $extractedFolder = Join-Path -Path $tempExtractPath -ChildPath "modules-main"
+            if (Test-Path $extractedFolder) {
+                Write-Host "Copying extracted modules to $destinationPath"
+                robocopy $extractedFolder $destinationPath /E
+                Remove-Item -Path $tempExtractPath -Recurse -Force
+            }
+
+            # $DBG
+
+            Write-Host "Modules downloaded and extracted to $destinationPath"
         }
 
         function Setup-WindowsEnvironment {
@@ -217,12 +249,13 @@ Try {
             Setup-GlobalPaths
 
             # Construct the paths dynamically using the base paths
-            $global:modulePath = Join-Path -Path $modulesBasePath -ChildPath $WindowsModulePath
-            $global:AOPSScriptroot = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
-            $global:directoryPath = Join-Path -Path $scriptBasePath -ChildPath 'Win32Apps-DropBox'
+            $modulePath = Join-Path -Path $global:modulesBasePath -ChildPath $WindowsModulePath
+
+            $global:modulePath = $modulePath
+            $global:AOscriptDirectory = Join-Path -Path $scriptBasePath -ChildPath "Win32Apps-DropBox"
+            $global:directoryPath = Join-Path -Path $scriptBasePath -ChildPath "Win32Apps-DropBox"
             $global:Repo_Path = $scriptBasePath
             $global:Repo_winget = "$Repo_Path\Win32Apps-DropBox"
-
 
             # Import the module using the dynamically constructed path
             Import-Module -Name $global:modulePath -Verbose -Force:$true -Global:$true
@@ -241,7 +274,7 @@ Try {
             Import-Module $LinuxModulePath -Verbose
 
             # Convert paths from Windows to Linux format
-            $global:AOPSScriptroot = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
+            $global:AOscriptDirectory = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
             $global:directoryPath = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot\Win32Apps-DropBox"
             $global:Repo_Path = Convert-WindowsPathToLinuxPath -WindowsPath "$PSscriptroot"
             $global:Repo_winget = "$global:Repo_Path\Win32Apps-DropBox"
@@ -255,7 +288,7 @@ Try {
             Setup-LinuxEnvironment
         }
         else {
-            throw 'Unsupported operating system'
+            throw "Unsupported operating system"
         }
     }
 
@@ -263,12 +296,13 @@ Try {
     Initialize-Environment
 
 
+
     # Example usage of global variables outside the function
-    Write-Output 'Global variables set by Initialize-Environment:'
+    Write-Output "Global variables set by Initialize-Environment:"
     Write-Output "scriptBasePath: $scriptBasePath"
     Write-Output "modulesBasePath: $modulesBasePath"
     Write-Output "modulePath: $modulePath"
-    Write-Output "AOPSScriptroot: $AOPSScriptroot"
+    Write-Output "AOscriptDirectory: $AOscriptDirectory"
     Write-Output "directoryPath: $directoryPath"
     Write-Output "Repo_Path: $Repo_Path"
     Write-Output "Repo_winget: $Repo_winget"
@@ -298,14 +332,17 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 #>
 
 
-    Write-Host 'Starting to call Get-ModulesFolderPath...'
-
-    # Store the outcome in $ModulesFolderPath
     try {
-  
-        # $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
-        $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
-        Write-Host "Modules folder path: $ModulesFolderPath"
+
+        # Check if C:\code\modules exists
+        if (Test-Path "C:\code\modules") {
+            $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "C:\code\modules" -UnixPath "/usr/src/code/modules"
+        }
+        else {
+            $ModulesFolderPath = Get-ModulesFolderPath -WindowsPath "$PsScriptRoot\modules" -UnixPath "$PsScriptRoot/modules"
+        }
+
+        Write-Host "Modules Folder Path: $ModulesFolderPath"
 
     }
     catch {
@@ -313,7 +350,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
     }
 
 
-    Write-Host 'Starting to call Import-LatestModulesLocalRepository...'
+    Write-Host "Starting to call Import-LatestModulesLocalRepository..."
     Import-LatestModulesLocalRepository -ModulesFolderPath $ModulesFolderPath -ScriptPath $PSScriptRoot
 
     ###############################################################################################################################
@@ -334,7 +371,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
     ###############################################################################################################################
 
     # Setup logging
-    Write-EnhancedLog -Message 'Script Started' -Level 'INFO'
+    Write-EnhancedLog -Message "Script Started" -Level "INFO"
 
     ################################################################################################################################
     ################################################################################################################################
@@ -346,16 +383,16 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
     # ################################################################################################################################
 
     # Example usage
-    $privateFolderPath = Join-Path -Path $PSScriptRoot -ChildPath 'private'
-    $PsExec64Path = Join-Path -Path $privateFolderPath -ChildPath 'PsExec64.exe'
+    $privateFolderPath = Join-Path -Path $PSScriptRoot -ChildPath "private"
+    $PsExec64Path = Join-Path -Path $privateFolderPath -ChildPath "PsExec64.exe"
     $ScriptToRunAsSystem = $MyInvocation.MyCommand.Path
 
     Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSystem -TargetFolder $privateFolderPath
 
+
     # ################################################################################################################################
     # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
     # ################################################################################################################################
-
 
 
 
@@ -438,21 +475,31 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
         
         # Example usage of Import-RegistryFilesInScriptRoot function
-        # Call the function to import all registry files in the script root
-        Import-RegistryFilesInScriptRoot
+        # Call the function to import all registry files in the script roo
+
+        $ImportRegistryFilesInScriptRootparams = @{
+            Filter          = "*.reg"
+            FilePath        = "reg.exe"
+            Arguments       = "import `"$registryFilePath`""
+            ScriptDirectory = $PSScriptRoot
+        }
+
+        # Call the Import-RegistryFilesInScriptRoot function using splatting
+        Import-RegistryFilesInScriptRoot @ImportRegistryFilesInScriptRootparams
+
 
 
         # Example usage of Import-FortiClientConfig function with splatting
-        $importParams = @{
-            ScriptRoot         = $PSScriptRoot
-            FortiClientPath    = "C:\Program Files\Fortinet\FortiClient"
+        $ImportFortiClientConfigParams = @{
+            ScriptRoot          = $PSScriptRoot
+            FortiClientPath     = "C:\Program Files\Fortinet\FortiClient"
             ConfigFileExtension = "*.xml"
-            FCConfigExecutable = "FCConfig.exe"
-            ArgumentTemplate   = "-m all -f `{ConfigFilePath}` -o import -i 1"
+            FCConfigExecutable  = "FCConfig.exe"
+            ArgumentTemplate    = "-m all -f `{ConfigFilePath}` -o import -i 1"
         }
         
         # Call the Import-FortiClientConfig function using splatting
-        Import-FortiClientConfig @importParams
+        Import-FortiClientConfig @ImportFortiClientConfigParams
         
 
         
@@ -467,6 +514,26 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
 
         ## Display a message at the end of the install
         If (-not $useDefaultMsi) {
+
+            Show-InstallationProgress -Status 'Unscheduling the post reboot installer'
+
+
+            # Define the path to the PowerShell executable
+            $powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+            # Define the path to the deploy-application.ps1 script
+            $scriptPath = "$PSScriptRoot\unscheduler.ps1"
+
+            # Define the arguments for the script
+            $arguments = "-NoExit -ExecutionPolicy Bypass -File `"$scriptPath`""
+
+            # Start the process without hiding the window
+            Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait
+
+
+
+
+
             Show-InstallationPrompt -Message 'You should now see FortiClient VPN v7.4.0.1658 in your task bar' -ButtonRightText 'OK' -Icon Information -NoWait
         }
     }
@@ -519,21 +586,21 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
             try {
                 # Call your uninstall commands here
        
-                   # Example usage of Uninstall-FortiClientEMSAgentApplication function with splatting
-                   $UninstallFortiClientEMSAgentApplicationParams = @{
-                    UninstallKeys = @(
+                # Example usage of Uninstall-FortiClientEMSAgentApplication function with splatting
+                $UninstallFortiClientEMSAgentApplicationParams = @{
+                    UninstallKeys    = @(
                         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
                         'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
                     )
-                    ApplicationName = '*Forti*'
-                    FilePath = 'MsiExec.exe'
+                    ApplicationName  = '*Forti*'
+                    FilePath         = 'MsiExec.exe'
                     ArgumentTemplate = "/X{ProductId} /quiet /norestart"
                 }
                 Uninstall-FortiClientEMSAgentApplication @UninstallFortiClientEMSAgentApplicationParams
 
 
                 # Show restart prompt after uninstallation
-                Show-InstallationRestartPrompt -CountdownSeconds 60 -CountdownNoHideSeconds 60 -TopMost $true
+                # Show-InstallationRestartPrompt -CountdownSeconds 60 -CountdownNoHideSeconds 60 -TopMost $true
             }
             catch {
                 # Write-Log -Message "An error occurred during the uninstallation process: $_" -Severity 3
