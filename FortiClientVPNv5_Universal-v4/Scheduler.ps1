@@ -196,20 +196,14 @@ catch {
 # Setup logging
 Write-EnhancedLog -Message "Script Started" -Level "INFO"
 
+
+
+
+
+
 ################################################################################################################################
 ################################################################################################################################
 ################################################################################################################################
-
-# Example usage
-$DownloadPSAppDeployToolkitparams = @{
-    GithubRepository = 'PSAppDeployToolkit/PSAppDeployToolkit'
-    FilenamePatternMatch = '*.zip'
-    ScriptDirectory = $PSScriptRoot
-}
-Download-PSAppDeployToolkit @DownloadPSAppDeployToolkitparams
-
-
-$DBG
 
 
 
@@ -231,8 +225,6 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 
 
 
-
-
 # Example usage of Download-And-Install-ServiceUI function with splatting
 $DownloadAndInstallServiceUIparams = @{
     TargetFolder = "$PSScriptRoot"
@@ -241,6 +233,16 @@ $DownloadAndInstallServiceUIparams = @{
     InstalledServiceUIPath = "C:\Program Files\Microsoft Deployment Toolkit\Templates\Distribution\Tools\x64\ServiceUI.exe"
 }
 Download-And-Install-ServiceUI @DownloadAndInstallServiceUIparams
+
+
+# Example usage
+$DownloadPSAppDeployToolkitparams = @{
+    GithubRepository = 'PSAppDeployToolkit/PSAppDeployToolkit'
+    FilenamePatternMatch = '*.zip'
+    ScriptDirectory = $PSScriptRoot
+}
+Download-PSAppDeployToolkit @DownloadPSAppDeployToolkitparams
+
 
 
 
