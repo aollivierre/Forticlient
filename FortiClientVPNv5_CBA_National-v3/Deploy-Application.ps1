@@ -525,7 +525,7 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
             $scriptPath = "$PSScriptRoot\unscheduler.ps1"
 
             # Define the arguments for the script
-            $arguments = "-NoExit -ExecutionPolicy Bypass -File `"$scriptPath`""
+            $arguments = "-ExecutionPolicy Bypass -File `"$scriptPath`""
 
             # Start the process without hiding the window
             Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait

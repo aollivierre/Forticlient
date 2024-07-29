@@ -796,7 +796,7 @@ shutdown /r /f /t 00
 
         
                 # Show restart prompt after uninstallation
-                # Show-InstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60 -TopMost $true
+                Show-InstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60 -TopMost $true
             }
             catch {
                 # Write-Log -Message "An error occurred during the uninstallation process: $_" -Severity 3
