@@ -200,6 +200,18 @@ Write-EnhancedLog -Message "Script Started" -Level "INFO"
 ################################################################################################################################
 ################################################################################################################################
 
+# Example usage
+$DownloadPSAppDeployToolkitparams = @{
+    GithubRepository = 'PSAppDeployToolkit/PSAppDeployToolkit'
+    FilenamePatternMatch = '*.zip'
+    ScriptDirectory = $PSScriptRoot
+}
+Download-PSAppDeployToolkit @DownloadPSAppDeployToolkitparams
+
+
+$DBG
+
+
 
 # ################################################################################################################################
 # ############### CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ############################
@@ -216,6 +228,23 @@ Ensure-RunningAsSystem -PsExec64Path $PsExec64Path -ScriptPath $ScriptToRunAsSys
 # ################################################################################################################################
 # ############### END CALLING AS SYSTEM to simulate Intune deployment as SYSTEM (Uncomment for debugging) ########################
 # ################################################################################################################################
+
+
+
+
+
+# Example usage of Download-And-Install-ServiceUI function with splatting
+$DownloadAndInstallServiceUIparams = @{
+    TargetFolder = "$PSScriptRoot"
+    DownloadUrl = "https://download.microsoft.com/download/3/3/9/339BE62D-B4B8-4956-B58D-73C4685FC492/MicrosoftDeploymentToolkit_x64.msi"
+    MsiFileName = "MicrosoftDeploymentToolkit_x64.msi"
+    InstalledServiceUIPath = "C:\Program Files\Microsoft Deployment Toolkit\Templates\Distribution\Tools\x64\ServiceUI.exe"
+}
+Download-And-Install-ServiceUI @DownloadAndInstallServiceUIparams
+
+
+
+
 
 
 
