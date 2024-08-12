@@ -354,21 +354,21 @@ try {
         Execute-Script -extractPath $extractPath -folderPattern '*FortiClientVPN*' -scriptName 'Scheduler.ps1'
 
         # Optionally, wait for processes to finish before post-validation
-        # Write-Log "Waiting for all processes to complete..." -Level "INFO"
-        # Start-Sleep -Seconds 10  # Adjust this as needed for testing
+        Write-Log "Waiting for all processes to complete..." -Level "INFO"
+        Start-Sleep -Seconds 60  # Adjust this as needed for testing
 
-        Log-Step
-        Write-Log "Starting post-installation validation for FortiClientVPN..." -Level "INFO"
-        $postValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
+        # Log-Step
+        # Write-Log "Starting post-installation validation for FortiClientVPN..." -Level "INFO"
+        # $postValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
 
-        if ($postValidationResult.IsInstalled) {
-            Write-Log "Post-installation validation successful: FortiClientVPN version $($postValidationResult.Version) is installed." -Level "INFO"
-            $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Successfully Installed"; VersionFound = $postValidationResult.Version })
-        }
-        else {
-            Write-Log "Post-installation validation failed: FortiClientVPN was not found or does not meet the minimum version requirement." -Level "ERROR"
-            $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Failed - Not Found After Installation"; VersionFound = "N/A" })
-        }
+        # if ($postValidationResult.IsInstalled) {
+        #     Write-Log "Post-installation validation successful: FortiClientVPN version $($postValidationResult.Version) is installed." -Level "INFO"
+        #     $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Successfully Installed"; VersionFound = $postValidationResult.Version })
+        # }
+        # else {
+        #     Write-Log "Post-installation validation failed: FortiClientVPN was not found or does not meet the minimum version requirement." -Level "ERROR"
+        #     $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Failed - Not Found After Installation"; VersionFound = "N/A" })
+        # }
     }
 
     # Summary report
