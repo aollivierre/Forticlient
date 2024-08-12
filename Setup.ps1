@@ -162,7 +162,3 @@ try {
     Write-Host "An error occurred: $errorDetails" -ForegroundColor Red
     throw
 }
-
-
-
-
