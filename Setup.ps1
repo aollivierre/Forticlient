@@ -85,6 +85,10 @@ function Validate-Installation {
         return @{ IsInstalled = $false }  # Force the script to always run
     }
 
+    if ($SoftwareName -eq "FortiClient VPN") {
+        return @{ IsInstalled = $false }  # Force the script to always run
+    }
+
     $retryCount = 0
     $validationSucceeded = $false
 
