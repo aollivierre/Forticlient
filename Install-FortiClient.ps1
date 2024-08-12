@@ -75,82 +75,39 @@ function Start-BitsTransferWithRetry {
     }
 }
 
-# Function to validate the installation of Visual C++ Redistributable
-function Validate-VCppRedistInstallation {
+# Function to validate the installation of FortiClient VPN
+function Validate-FortiClientVPNInstallation {
     param (
-        [Parameter(Mandatory = $true)]
-        [string]$arch,
-        
-        [version]$MinVersion = [version]"14.40.33810.0",
-        
-        [int]$MaxRetries = 3,
-        
-        [int]$DelayBetweenRetries = 5
+        [string[]]$RegistryPaths,
+        [string]$SoftwareName = "*FortiClient*",
+        [version]$ExcludedVersion = [version]"7.4.0.1658"
     )
 
-    $retryCount = 0
-    $validationSucceeded = $false
-    $registryPath = "HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\$arch"
-    $foundVersion = $null
+    foreach ($path in $RegistryPaths) {
+        if (-not (Test-Path $path)) {
+            Write-Log "Registry path not found: $path" -Level "ERROR"
+            continue
+        }
 
-    # Check standard path first
-    if (Test-Path $registryPath) {
-        $app = Get-ItemProperty -Path $registryPath
-        # Remove the leading 'v' if present before parsing
-        $installedVersionString = $app.Version -replace '^v', ''
-        $installedVersion = [version]$installedVersionString
-        $foundVersion = $installedVersion
-        Write-Log "Found Visual C++ Redistributable ($arch) version $installedVersion." -Level "INFO"
-        if ($installedVersion -ge $MinVersion) {
-            Write-Log "Visual C++ Redistributable ($arch) version $installedVersion meets the minimum version requirement ($MinVersion)." -Level "INFO"
-            return @{
-                IsInstalled = $true
-                Version     = $installedVersion
-            }
-        }
-        else {
-            Write-Log "Visual C++ Redistributable ($arch) version $installedVersion does not meet the minimum version requirement ($MinVersion)." -Level "WARNING"
-            # No need to retry if the version is already found and not meeting the minimum
-            return @{
-                IsInstalled = $false
-                Version     = $installedVersion
-            }
-        }
-    } 
-    # Check WOW6432Node path for x86 specifically
-    elseif ($arch -eq "x86" -and (Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\$arch")) {
-        $app = Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\$arch"
-        # Remove the leading 'v' if present before parsing
-        $installedVersionString = $app.Version -replace '^v', ''
-        $installedVersion = [version]$installedVersionString
-        $foundVersion = $installedVersion
-        Write-Log "Found Visual C++ Redistributable ($arch) version $installedVersion." -Level "INFO"
-        if ($installedVersion -ge $MinVersion) {
-            Write-Log "Visual C++ Redistributable ($arch) version $installedVersion meets the minimum version requirement ($MinVersion)." -Level "INFO"
-            return @{
-                IsInstalled = $true
-                Version     = $installedVersion
-            }
-        }
-        else {
-            Write-Log "Visual C++ Redistributable ($arch) version $installedVersion does not meet the minimum version requirement ($MinVersion)." -Level "WARNING"
-            # No need to retry if the version is already found and not meeting the minimum
-            return @{
-                IsInstalled = $false
-                Version     = $installedVersion
+        $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
+        foreach ($item in $items) {
+            $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
+            if ($app.DisplayName -like $SoftwareName) {
+                $installedVersion = [version]$app.DisplayVersion
+                if ($installedVersion -lt $ExcludedVersion) {
+                    return @{
+                        IsInstalled = $true
+                        Version     = $installedVersion
+                        ProductCode = $app.PSChildName
+                    }
+                }
             }
         }
     }
-    else {
-        # If the path doesn't exist, no need to retry
-        Write-Log "Visual C++ Redistributable ($arch) is not currently installed or does not meet the minimum version requirement." -Level "INFO"
-        return @{
-            IsInstalled = $false
-        }
-    }
 
-    # ... (rest of the logic)
+    return @{ IsInstalled = $false }
 }
+
 
 
 
@@ -276,22 +233,58 @@ function Execute-Script {
 }
 
 
-
 try {
+    # Pre-installation validation
     Log-Step
-    $zipPath, $extractPath = Download-ForticlientRepo
+    Write-Log "Starting pre-installation validation for FortiClientVPN..." -Level "INFO"
+    $preValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
 
-    Log-Step
-    Extract-ForticlientRepo -zipPath $zipPath -extractPath $extractPath
+    if ($preValidationResult.IsInstalled) {
+        Write-Log "FortiClientVPN version $($preValidationResult.Version) is installed and is older than the excluded version." -Level "INFO"
+        $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Pre-installed"; VersionFound = $preValidationResult.Version })
+    }
+    else {
+        Write-Log "No older FortiClientVPN installation detected. Proceeding with installation steps." -Level "INFO"
 
-    Log-Step
-    Extract-AllZipFilesRecursively -extractPath $extractPath
+        # Main installation steps
+        Log-Step
+        $zipPath, $extractPath = Download-ForticlientRepo
 
-    Log-Step
-    Execute-Script -extractPath $extractPath -folderPattern '*FortiClientEMS*' -scriptName 'Uninstall.ps1'
+        Log-Step
+        Extract-ForticlientRepo -zipPath $zipPath -extractPath $extractPath
 
-    Log-Step
-    Execute-Script -extractPath $extractPath -folderPattern '*FortiClientVPN*' -scriptName 'Scheduler.ps1'
+        Log-Step
+        Extract-AllZipFilesRecursively -extractPath $extractPath
+
+        Log-Step
+        Execute-Script -extractPath $extractPath -folderPattern '*FortiClientEMS*' -scriptName 'Uninstall.ps1'
+
+        Log-Step
+        Execute-Script -extractPath $extractPath -folderPattern '*FortiClientVPN*' -scriptName 'Scheduler.ps1'
+
+        # Post-installation validation
+        Log-Step
+        Write-Log "Starting post-installation validation for FortiClientVPN..." -Level "INFO"
+        $postValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
+
+        if ($postValidationResult.IsInstalled) {
+            Write-Log "Post-installation validation successful: FortiClientVPN version $($postValidationResult.Version) is installed." -Level "INFO"
+            $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Successfully Installed"; VersionFound = $postValidationResult.Version })
+        }
+        else {
+            Write-Log "Post-installation validation failed: FortiClientVPN was not found or is not in the expected version range." -Level "ERROR"
+            $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Failed - Not Found After Installation"; VersionFound = "N/A" })
+        }
+    }
+
+    # Summary report
+    Write-Host "Installation Summary:" -ForegroundColor Cyan
+    $installationResults | ForEach-Object {
+        Write-Host "Software: $($_.SoftwareName)" -ForegroundColor White
+        Write-Host "Status: $($_.Status)" -ForegroundColor White
+        Write-Host "Version Found: $($_.VersionFound)" -ForegroundColor White
+        Write-Host "----------------------------------------" -ForegroundColor Gray
+    }
 
 }
 catch {
