@@ -518,17 +518,36 @@ Ensure the Write-EnhancedLog function is defined before using this function for 
             Show-InstallationProgress -Status 'Unscheduling the post reboot installer'
 
 
-            # Define the path to the PowerShell executable
-            $powerShellPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+            # Define the function to get the appropriate PowerShell path
+            function Get-PowerShellPath {
+                if (Test-Path "C:\Program Files\PowerShell\7\pwsh.exe") {
+                    return "C:\Program Files\PowerShell\7\pwsh.exe"
+                }
+                elseif (Test-Path "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe") {
+                    return "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+                }
+                else {
+                    throw "Neither PowerShell 7 nor PowerShell 5 was found on this system."
+                }
+            }
 
-            # Define the path to the deploy-application.ps1 script
+            # Get the PowerShell path using the function
+            $powerShellPath = Get-PowerShellPath
+
+            # Define the path to the unscheduler.ps1 script
             $scriptPath = "$PSScriptRoot\unscheduler.ps1"
 
-            # Define the arguments for the script
-            $arguments = "-ExecutionPolicy Bypass -File `"$scriptPath`""
+            # Define the arguments for the script using splatting
+            $startProcessParams = @{
+                FilePath     = $powerShellPath
+                ArgumentList = @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"")
+                Wait         = $true
+            }
 
-            # Start the process without hiding the window
-            Start-Process -FilePath $powerShellPath -ArgumentList $arguments -Wait
+            # Start the process
+            Start-Process @startProcessParams
+
+
 
 
 

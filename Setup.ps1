@@ -164,11 +164,11 @@ foreach ($detail in $scriptDetails) {
 }
 
 # Define additional steps
-Add-Step "Downloading Forticlient repository from GitHub"
-Add-Step "Extracting Forticlient repository"
-Add-Step "Extracting all ZIP files recursively"
-Add-Step "Executing Uninstall.ps1 script"
-Add-Step "Executing Scheduler.ps1 script"
+# Add-Step "Downloading Forticlient repository from GitHub"
+# Add-Step "Extracting Forticlient repository"
+# Add-Step "Extracting all ZIP files recursively"
+# Add-Step "Executing Uninstall.ps1 script"
+# Add-Step "Executing Scheduler.ps1 script"
 
 
 # Main script execution with try-catch for error handling

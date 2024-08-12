@@ -8,6 +8,24 @@ function Test-Admin {
     return $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Set-ExecutionPolicyBypass {
+    [CmdletBinding()]
+    param (
+        [string]$Scope = "Process"  # Default scope is "Process" for the current session
+    )
+
+    try {
+        Write-Host "Setting execution policy to Bypass for scope: $Scope" -ForegroundColor Cyan
+        Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope $Scope -Force
+        Write-Host "Execution policy successfully set to Bypass." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Error setting execution policy: $($_.Exception.Message)" -ForegroundColor Red
+        throw $_
+    }
+}
+
+
 # Function for logging with color coding
 function Write-Log {
     param (
@@ -84,7 +102,7 @@ function Validate-FortiClientVPNInstallation {
     param (
         [string[]]$RegistryPaths,
         [string]$SoftwareName = "*FortiClient*",
-        [version]$ExcludedVersion = [version]"7.4.0.1658"
+        [version]$MinVersion = [version]"7.4.0.1658"
     )
 
     foreach ($path in $RegistryPaths) {
@@ -98,7 +116,7 @@ function Validate-FortiClientVPNInstallation {
             $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
             if ($app.DisplayName -like $SoftwareName) {
                 $installedVersion = [version]$app.DisplayVersion
-                if ($installedVersion -lt $ExcludedVersion) {
+                if ($installedVersion -ge $MinVersion) {
                     return @{
                         IsInstalled = $true
                         Version     = $installedVersion
@@ -111,6 +129,7 @@ function Validate-FortiClientVPNInstallation {
 
     return @{ IsInstalled = $false }
 }
+
 
 
 
@@ -303,19 +322,21 @@ $totalSteps = $global:steps.Count
 
 # Main Script Execution
 try {
-
     Test-Admin
+
+    # Set the execution policy to Bypass
+    Set-ExecutionPolicyBypass
 
     Log-Step
     Write-Log "Starting pre-installation validation for FortiClientVPN..." -Level "INFO"
     $preValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
 
     if ($preValidationResult.IsInstalled) {
-        Write-Log "FortiClientVPN version $($preValidationResult.Version) is installed and is older than the excluded version." -Level "INFO"
+        Write-Log "FortiClientVPN version $($preValidationResult.Version) is installed and meets the minimum version requirement." -Level "INFO"
         $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Pre-installed"; VersionFound = $preValidationResult.Version })
     }
     else {
-        Write-Log "No older FortiClientVPN installation detected. Proceeding with installation steps." -Level "INFO"
+        Write-Log "FortiClientVPN version 7.4.0.1658 or newer is not installed. Proceeding with installation steps." -Level "INFO"
 
         Log-Step
         $zipPath, $extractPath = Download-ForticlientRepo
@@ -341,7 +362,7 @@ try {
             $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Successfully Installed"; VersionFound = $postValidationResult.Version })
         }
         else {
-            Write-Log "Post-installation validation failed: FortiClientVPN was not found or is not in the expected version range." -Level "ERROR"
+            Write-Log "Post-installation validation failed: FortiClientVPN was not found or does not meet the minimum version requirement." -Level "ERROR"
             $installationResults.Add([pscustomobject]@{ SoftwareName = "FortiClientVPN"; Status = "Failed - Not Found After Installation"; VersionFound = "N/A" })
         }
     }

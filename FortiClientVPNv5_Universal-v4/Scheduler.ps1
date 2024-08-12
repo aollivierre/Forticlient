@@ -245,11 +245,6 @@ Download-PSAppDeployToolkit @DownloadPSAppDeployToolkitparams
 
 
 
-
-
-
-
-
 #right before rebooting we will schedule our install script (which is our script2 or our post-reboot script to run automatically at startup under the SYSTEM account)
 # here I need to pass these in the config file (JSON or PSD1) or here in the splat but I need to have it outside of the function
 
