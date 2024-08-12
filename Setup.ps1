@@ -150,7 +150,7 @@ function Validate-Installation {
 $scriptDetails = @(
     @{ Url = "https://raw.githubusercontent.com/aollivierre/setuplab/main/Install-7zip.ps1"; SoftwareName = "7-Zip"; MinVersion = [version]"24.07.0.0" },
     @{ Url = "https://raw.githubusercontent.com/aollivierre/setuplab/main/Install-VCppRedist.ps1"; SoftwareName = "Visual C++ Redistributable"; MinVersion = [version]"14.40.33810.0" },
-    @{ Url = "https://raw.githubusercontent.com/aollivierre/setuplab/main/Install-FortiClient.ps1"; SoftwareName = "FortiClient VPN"; MinVersion = [version]"7.4.0.1658" }
+    @{ Url = "https://raw.githubusercontent.com/aollivierre/Forticlient/main/Install-FortiClient.ps1"; SoftwareName = "FortiClient VPN"; MinVersion = [version]"7.4.0.1658" }
 )
 
 
