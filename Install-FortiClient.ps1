@@ -1,3 +1,7 @@
+# Initialize the global steps list
+$global:steps = [System.Collections.Generic.List[PSCustomObject]]::new()
+$global:currentStep = 0
+
 # Function to check if running as administrator
 function Test-Admin {
     $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -41,39 +45,39 @@ function Log-Step {
     Write-Log "Step [$global:currentStep/$totalSteps]: $stepDescription" -Level "INFO"
 }
 
-# Function to download files with retry logic
-function Start-BitsTransferWithRetry {
-    param (
-        [string]$Source,
-        [string]$Destination,
-        [int]$MaxRetries = 3
-    )
-    $attempt = 0
-    $success = $false
+# # Function to download files with retry logic
+# function Start-BitsTransferWithRetry {
+#     param (
+#         [string]$Source,
+#         [string]$Destination,
+#         [int]$MaxRetries = 3
+#     )
+#     $attempt = 0
+#     $success = $false
 
-    while ($attempt -lt $MaxRetries -and -not $success) {
-        try {
-            $attempt++
-            if (-not (Test-Path -Path (Split-Path $Destination -Parent))) {
-                throw "Destination path does not exist: $(Split-Path $Destination -Parent)"
-            }
-            $bitsTransferParams = @{
-                Source      = $Source
-                Destination = $Destination
-                ErrorAction = "Stop"
-            }
-            Start-BitsTransfer @bitsTransferParams
-            $success = $true
-        }
-        catch {
-            Write-Log "Attempt $attempt failed: $_" -Level "ERROR"
-            if ($attempt -eq $MaxRetries) {
-                throw "Maximum retry attempts reached. Download failed."
-            }
-            Start-Sleep -Seconds 5
-        }
-    }
-}
+#     while ($attempt -lt $MaxRetries -and -not $success) {
+#         try {
+#             $attempt++
+#             if (-not (Test-Path -Path (Split-Path $Destination -Parent))) {
+#                 throw "Destination path does not exist: $(Split-Path $Destination -Parent)"
+#             }
+#             $bitsTransferParams = @{
+#                 Source      = $Source
+#                 Destination = $Destination
+#                 ErrorAction = "Stop"
+#             }
+#             Start-BitsTransfer @bitsTransferParams
+#             $success = $true
+#         }
+#         catch {
+#             Write-Log "Attempt $attempt failed: $_" -Level "ERROR"
+#             if ($attempt -eq $MaxRetries) {
+#                 throw "Maximum retry attempts reached. Download failed."
+#             }
+#             Start-Sleep -Seconds 5
+#         }
+#     }
+# }
 
 # Function to validate the installation of FortiClient VPN
 function Validate-FortiClientVPNInstallation {
@@ -111,28 +115,63 @@ function Validate-FortiClientVPNInstallation {
 
 
 
-# Function to download Forticlient repository from GitHub
+# Function to download Forticlient repository from GitHub using WebClient with retry mechanism
 function Download-ForticlientRepo {
     param (
         [string]$repoUrl = "https://github.com/aollivierre/Forticlient/archive/refs/heads/main.zip",
-        [string]$destinationFolder = "$env:TEMP"
+        [string]$destinationFolder = "$env:TEMP",
+        [int]$MaxRetries = 3,
+        [int]$DelayBetweenRetries = 5 # Delay in seconds
     )
 
     $timestamp = Get-Date -Format "yyyyMMddHHmmss"
     $zipPath = "$destinationFolder\Forticlient_$timestamp.zip"
     $extractPath = "$destinationFolder\Forticlient_$timestamp"
 
-    Write-Log "Downloading Forticlient repository from GitHub..."
-    try {
-        Start-BitsTransferWithRetry -Source $repoUrl -Destination $zipPath
-        Write-Log "Download complete: The repository has been downloaded to $zipPath." -Level "INFO"
-        return $zipPath, $extractPath
+    # Validate paths
+    if (-not (Test-Path -Path $destinationFolder)) {
+        Write-Log "Destination folder path not found: $destinationFolder" -Level "ERROR"
+        throw "Destination folder path does not exist: $destinationFolder"
     }
-    catch {
-        Write-Log "Error downloading Forticlient repository: $_" -Level "ERROR"
-        throw
+
+    Write-Log "Starting download of Forticlient repository from $repoUrl to $zipPath..."
+
+    $attempt = 0
+    $success = $false
+
+    while ($attempt -lt $MaxRetries -and -not $success) {
+        try {
+            $attempt++
+            Write-Log "Attempt $attempt of downloading the repository..."
+            
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($repoUrl, $zipPath)
+
+            if (-not (Test-Path -Path $zipPath)) {
+                throw "Download failed: The file was not created at $zipPath"
+            }
+
+            Write-Log "Download complete: The repository has been successfully downloaded to $zipPath." -Level "INFO"
+            $success = $true
+
+            return $zipPath, $extractPath
+        }
+        catch {
+            Write-Log "Attempt $attempt failed: $_" -Level "ERROR"
+            if ($attempt -lt $MaxRetries) {
+                Write-Log "Retrying in $DelayBetweenRetries seconds..." -Level "WARNING"
+                Start-Sleep -Seconds $DelayBetweenRetries
+            }
+            else {
+                Write-Log "Maximum retry attempts reached. Download failed." -Level "ERROR"
+                throw "Maximum retry attempts reached. Download failed."
+            }
+        }
     }
 }
+
+
+
 
 # Function to extract the downloaded Forticlient repository
 function Extract-ForticlientRepo {
@@ -201,40 +240,72 @@ function Execute-Script {
     )
 
     Log-Step
+
+    # Validate that the extractPath exists
+    if (-not (Test-Path -Path $extractPath)) {
+        Write-Log "The specified extract path does not exist: $extractPath" -Level "ERROR"
+        throw "The extract path does not exist: $extractPath"
+    }
+
+    Write-Log "Searching for folder matching pattern '$folderPattern' in $extractPath..." -Level "INFO"
     $deployFolder = Get-ChildItem -Path $extractPath -Recurse -Directory | Where-Object { $_.Name -like $folderPattern }
+    
     if ($deployFolder) {
+        Write-Log "Folder found: $($deployFolder.FullName). Searching for script '$scriptName'..." -Level "INFO"
         $scriptPath = Get-ChildItem -Path $deployFolder.FullName -Recurse -Filter $scriptName | Select-Object -First 1
+        
         if ($scriptPath) {
-            Write-Log "Executing $scriptName..."
+            Write-Log "Script found: $($scriptPath.FullName). Preparing to execute in a new PowerShell instance..." -Level "INFO"
             
             # Get PowerShell path
             $powerShellPath = Get-PowerShellPath
 
-            # Splatting parameters
+            # Splatting parameters for Start-Process
             $startProcessParams = @{
                 FilePath     = $powerShellPath
-                ArgumentList = @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath.FullName`"")
-                Verb         = "RunAs"
-                PassThru     = $true
+                ArgumentList = @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"")
                 Wait         = $true
             }
 
-            # Start the PowerShell process
-            $process = Start-Process @startProcessParams
-            Write-Log "$scriptName execution complete." -Level "INFO"
+            try {
+                Start-Process @startProcessParams
+                Write-Log "$scriptName execution complete." -Level "INFO"
+            }
+            catch {
+                Write-Log "An error occurred while executing the script: $_" -Level "ERROR"
+                throw
+            }
         }
         else {
-            Write-Log "$scriptName not found in the repository." -Level "ERROR"
+            Write-Log "$scriptName not found in the repository under folder: $($deployFolder.FullName)." -Level "ERROR"
         }
     }
     else {
-        Write-Log "No folder found with name containing '$folderPattern'." -Level "ERROR"
+        Write-Log "No folder found with name containing '$folderPattern' in $extractPath." -Level "ERROR"
     }
 }
 
 
+
+# Add all your steps here
+Add-Step "Starting pre-installation validation for FortiClientVPN"
+Add-Step "Downloading Forticlient repository from GitHub"
+Add-Step "Extracting Forticlient repository"
+Add-Step "Extracting all ZIP files recursively"
+Add-Step "Executing Uninstall.ps1 script"
+Add-Step "Executing Scheduler.ps1 script"
+Add-Step "Starting post-installation validation for FortiClientVPN"
+
+# Calculate the total number of steps after all steps are added
+$totalSteps = $global:steps.Count
+
+
+
+# Main Script Execution
 try {
-    # Pre-installation validation
+
+    Test-Admin
+
     Log-Step
     Write-Log "Starting pre-installation validation for FortiClientVPN..." -Level "INFO"
     $preValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
@@ -246,7 +317,6 @@ try {
     else {
         Write-Log "No older FortiClientVPN installation detected. Proceeding with installation steps." -Level "INFO"
 
-        # Main installation steps
         Log-Step
         $zipPath, $extractPath = Download-ForticlientRepo
 
@@ -262,7 +332,6 @@ try {
         Log-Step
         Execute-Script -extractPath $extractPath -folderPattern '*FortiClientVPN*' -scriptName 'Scheduler.ps1'
 
-        # Post-installation validation
         Log-Step
         Write-Log "Starting post-installation validation for FortiClientVPN..." -Level "INFO"
         $postValidationResult = Validate-FortiClientVPNInstallation -RegistryPaths $registryPaths
@@ -285,7 +354,6 @@ try {
         Write-Host "Version Found: $($_.VersionFound)" -ForegroundColor White
         Write-Host "----------------------------------------" -ForegroundColor Gray
     }
-
 }
 catch {
     Write-Log "An error occurred: $_" -Level "ERROR"
