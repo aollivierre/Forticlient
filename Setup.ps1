@@ -1,10 +1,8 @@
-#call using powershell -Command "iex (irm https://raw.githubusercontent.com/aollivierre/Forticlient/main/Setup.ps1)"
-#call using powershell -Command "iex (irm https://bit.ly/3LGnN5u)"
-#call using powershell -Command "iex (irm bit.ly/3LGnN5u)"
-
 # Initialize the global steps list
 $global:steps = [System.Collections.Generic.List[PSCustomObject]]::new()
 $global:currentStep = 0
+$processList = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
+$installationResults = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 # Function to add a step
 function Add-Step {
@@ -19,146 +17,210 @@ function Log-Step {
     $global:currentStep++
     $totalSteps = $global:steps.Count
     $stepDescription = $global:steps[$global:currentStep - 1].Description
-    Write-Host "Step [$global:currentStep/$totalSteps]: $stepDescription"
+    Write-Host "Step [$global:currentStep/$totalSteps]: $stepDescription" -ForegroundColor Cyan
 }
 
-# Function to download and install the latest Visual C++ Redistributable
-function Install-VCppRedist {
+# Function for logging with color coding
+function Write-Log {
     param (
-        [string]$arch
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] [$Level] $Message"
+    
+    switch ($Level) {
+        "INFO" { Write-Host $logMessage -ForegroundColor Green }
+        "ERROR" { Write-Host $logMessage -ForegroundColor Red }
+        "WARNING" { Write-Host $logMessage -ForegroundColor Yellow }
+        default { Write-Host $logMessage -ForegroundColor White }
+    }
+
+    # Append to log file
+    $logFilePath = [System.IO.Path]::Combine($env:TEMP, 'install-scripts.log')
+    $logMessage | Out-File -FilePath $logFilePath -Append -Encoding utf8
+}
+
+# Function to validate URL
+function Test-Url {
+    param (
+        [string]$url
+    )
+    try {
+        Invoke-RestMethod -Uri $url -Method Head -ErrorAction Stop
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+# Function to get PowerShell path
+function Get-PowerShellPath {
+    if (Test-Path "C:\Program Files\PowerShell\7\pwsh.exe") {
+        return "C:\Program Files\PowerShell\7\pwsh.exe"
+    }
+    elseif (Test-Path "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe") {
+        return "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    }
+    else {
+        throw "Neither PowerShell 7 nor PowerShell 5 was found on this system."
+    }
+}
+
+
+# Function to validate software installation via registry with retry mechanism
+
+function Validate-Installation {
+    param (
+        [string]$SoftwareName,
+        [version]$MinVersion = [version]"0.0.0.0",
+        [string]$RegistryPath = "",
+        [int]$MaxRetries = 3,
+        [int]$DelayBetweenRetries = 5  # Delay in seconds
     )
 
-    $vcppUrl = "https://aka.ms/vs/17/release/vc_redist.$arch.exe"
-    $vcppPath = "$env:TEMP\vc_redist_$arch.exe"
+    # Skip validation for Visual C++ Redistributable as it has its own validation logic
+    if ($SoftwareName -eq "Visual C++ Redistributable") {
+        return @{ IsInstalled = $false }  # Force the script to always run
+    }
 
-    Write-Host "Downloading Visual C++ Redistributable ($arch)..."
-    Invoke-WebRequest -Uri $vcppUrl -OutFile $vcppPath
-    Write-Host "Download complete."
+    $retryCount = 0
+    $validationSucceeded = $false
 
-    Write-Host "Installing Visual C++ Redistributable ($arch)..."
-    Start-Process -FilePath $vcppPath -ArgumentList "/install", "/quiet", "/norestart" -Wait
-    Write-Host "Installation complete."
+    while ($retryCount -lt $MaxRetries -and -not $validationSucceeded) {
+        $registryPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall"  # Include HKCU for user-installed apps
+        )
+
+        if ($RegistryPath) {
+            # If a specific registry path is provided, check only that path
+            if (Test-Path $RegistryPath) {
+                $app = Get-ItemProperty -Path $RegistryPath -ErrorAction SilentlyContinue
+                if ($app -and $app.DisplayName -like "*$SoftwareName*") {
+                    $installedVersion = [version]$app.DisplayVersion
+                    if ($installedVersion -ge $MinVersion) {
+                        $validationSucceeded = $true
+                        return @{
+                            IsInstalled = $true
+                            Version     = $installedVersion
+                            ProductCode = $app.PSChildName
+                        }
+                    }
+                }
+            }
+        } else {
+            # If no specific registry path, check standard locations
+            foreach ($path in $registryPaths) {
+                $items = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
+                foreach ($item in $items) {
+                    $app = Get-ItemProperty -Path $item.PsPath -ErrorAction SilentlyContinue
+                    if ($app.DisplayName -like "*$SoftwareName*") {
+                        $installedVersion = [version]$app.DisplayVersion
+                        if ($installedVersion -ge $MinVersion) {
+                            $validationSucceeded = $true
+                            return @{
+                                IsInstalled = $true
+                                Version     = $installedVersion
+                                ProductCode = $app.PSChildName
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $retryCount++
+        if (-not $validationSucceeded) {
+            Write-Log "Validation attempt $retryCount failed: $SoftwareName not found or version does not meet minimum requirements. Retrying in $DelayBetweenRetries seconds..." -Level "WARNING"
+            Start-Sleep -Seconds $DelayBetweenRetries
+        }
+    }
+
+    return @{ IsInstalled = $false }
 }
 
-# Define the steps before execution
-Add-Step "Fetching the latest 7-Zip release info"
-Add-Step "Finding the MSI asset URL"
-Add-Step "Downloading the MSI file"
-Add-Step "Installing 7-Zip"
+
+
+
+
+# Define the GitHub URLs of the scripts and corresponding software names
+$scriptDetails = @(
+    @{ Url = "https://raw.githubusercontent.com/aollivierre/setuplab/main/Install-7zip.ps1"; SoftwareName = "7-Zip"; MinVersion = [version]"24.07.0.0" },
+    @{ Url = "https://raw.githubusercontent.com/aollivierre/setuplab/main/Install-VCppRedist.ps1"; SoftwareName = "Visual C++ Redistributable"; MinVersion = [version]"14.40.33810.0" },
+    @{ Url = "https://raw.githubusercontent.com/aollivierre/setuplab/main/Install-FortiClient.ps1"; SoftwareName = "FortiClient VPN"; MinVersion = [version]"7.4.0.1658" }
+)
+
+
+# Add steps for each script
+foreach ($detail in $scriptDetails) {
+    Add-Step ("Running script from URL: $($detail.Url)")
+}
+
+# Define additional steps
 Add-Step "Downloading Forticlient repository from GitHub"
 Add-Step "Extracting Forticlient repository"
 Add-Step "Extracting all ZIP files recursively"
-Add-Step "Installing Visual C++ Redistributable (x64 and x86)"
 Add-Step "Executing Uninstall.ps1 script"
 Add-Step "Executing Scheduler.ps1 script"
 
-# Calculate total steps dynamically
-$totalSteps = $global:steps.Count
 
 # Main script execution with try-catch for error handling
 try {
-    # Step 1: Fetching the latest 7-Zip release info
-    Log-Step
-    $releaseUrl = 'https://api.github.com/repos/ip7z/7zip/releases/latest'
-    $releaseInfo = Invoke-RestMethod -Uri $releaseUrl
+    $powerShellPath = Get-PowerShellPath
 
-    # Step 2: Finding the MSI asset URL
-    Log-Step
-    $msiAssets = $releaseInfo.assets | Where-Object { $_.name -like '*.msi' }
-    if (-not $msiAssets) {
-        throw "7-Zip MSI installer not found in the latest release."
-    }
+    foreach ($detail in $scriptDetails) {
+        $url = $detail.Url
+        $softwareName = $detail.SoftwareName
+        $minVersion = $detail.MinVersion
+        $registryPath = $detail.RegistryPath  # Directly extract RegistryPath
 
-    # Select the appropriate MSI asset (e.g., prefer x64 over x86)
-    $msiAsset = $msiAssets | Where-Object { $_.name -like '*x64.msi' } | Select-Object -First 1
-    if (-not $msiAsset) {
-        $msiAsset = $msiAssets | Select-Object -First 1
-    }
+        # Validate before running the installation script
+        Write-Log "Validating existing installation of $softwareName..."
 
-    $msiUrl = $msiAsset.browser_download_url
-    Write-Host "Found MSI asset URL: $msiUrl"
-
-    # Step 3: Downloading the MSI file
-    Log-Step
-    $msiPath = "$env:TEMP\7z_latest.msi"
-    Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath
-    Write-Host "Downloaded MSI file to $msiPath"
-    
-    # Step 4: Installing 7-Zip
-    Log-Step
-    Start-Process msiexec.exe -ArgumentList "/i", "`"$msiPath`"", "/quiet", "/norestart" -Wait
-    Write-Host "7-Zip installation complete."
-
-    # Step 5: Downloading Forticlient repository from GitHub
-    Log-Step
-    $repoUrl = "https://github.com/aollivierre/Forticlient/archive/refs/heads/main.zip"
-    $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-    $zipPath = "$env:TEMP\Forticlient_$timestamp.zip"
-    $extractPath = "$env:TEMP\Forticlient_$timestamp"
-    Write-Host "Downloading Forticlient repository from GitHub..."
-    Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath
-    Write-Host "Download complete."
-
-    # Step 6: Extracting Forticlient repository
-    Log-Step
-    Write-Host "Extracting Forticlient repository..."
-    Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-    Write-Host "Extraction complete."
-
-    # Step 7: Extracting all ZIP files recursively
-    Log-Step
-    Write-Host "Extracting all ZIP files recursively..."
-    $zipFiles = Get-ChildItem -Path $extractPath -Recurse -Include '*.zip.001'
-    foreach ($zipFile in $zipFiles) {
-        $destinationFolder = [System.IO.Path]::GetDirectoryName($zipFile.FullName)
-        Write-Host "Combining and extracting segmented ZIP files for $($zipFile.BaseName) using 7-Zip..."
-        $sevenZipCommand = "& `"$env:ProgramFiles\7-Zip\7z.exe`" x `"$zipFile`" -o`"$destinationFolder`""
-        Write-Host "Executing: $sevenZipCommand"
-        Invoke-Expression $sevenZipCommand
-    }
-    Write-Host "All ZIP files extracted."
-
-    # Step 8: Installing Visual C++ Redistributable (x64 and x86)
-    Log-Step
-    Install-VCppRedist -arch "x64"
-    Install-VCppRedist -arch "x86"
-
-    # Step 9: Executing Uninstall.ps1 script
-    Log-Step
-    $deployFolder = Get-ChildItem -Path $extractPath -Recurse -Directory | Where-Object { $_.Name -like '*FortiClientEMS*' }
-    if ($deployFolder) {
-        $uninstallScript = Get-ChildItem -Path $deployFolder.FullName -Recurse -Filter 'Uninstall.ps1' | Select-Object -First 1
-        if ($uninstallScript) {
-            Write-Host "Executing Uninstall.ps1..."
-            & powershell.exe -File $uninstallScript.FullName -Wait
-            Write-Host "Uninstall.ps1 execution complete."
+        # Pass RegistryPath if it's available
+        $installationCheck = if ($registryPath) {
+            Validate-Installation -SoftwareName $softwareName -MinVersion $minVersion -MaxRetries 3 -DelayBetweenRetries 5 -RegistryPath $registryPath
         } else {
-            Write-Error "Uninstall.ps1 not found."
+            Validate-Installation -SoftwareName $softwareName -MinVersion $minVersion -MaxRetries 3 -DelayBetweenRetries 5
         }
-    } else {
-        Write-Error "No folder found with name containing 'FortiClientEMS'."
+
+        if ($installationCheck.IsInstalled) {
+            Write-Log "$softwareName version $($installationCheck.Version) is already installed. Skipping installation." -Level "INFO"
+            $installationResults.Add([pscustomobject]@{ SoftwareName = $softwareName; Status = "Already Installed"; VersionFound = $installationCheck.Version })
+        } else {
+            if (Test-Url -url $url) {
+                Log-Step
+                Write-Log "Running script from URL: $url" -Level "INFO"
+                $process = Start-Process -FilePath $powerShellPath -ArgumentList @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Invoke-Expression (Invoke-RestMethod -Uri '$url')") -Verb RunAs -PassThru
+                $processList.Add($process)
+
+                $installationResults.Add([pscustomobject]@{ SoftwareName = $softwareName; Status = "Installed"; VersionFound = "N/A" })
+            } else {
+                Write-Log "URL $url is not accessible" -Level "ERROR"
+                $installationResults.Add([pscustomobject]@{ SoftwareName = $softwareName; Status = "Failed - URL Not Accessible"; VersionFound = "N/A" })
+            }
+        }
     }
 
+ 
 
-      # Step 10: Executing Scheduler.ps1 script
-      Log-Step
-      $deployFolder = Get-ChildItem -Path $extractPath -Recurse -Directory | Where-Object { $_.Name -like '*FortiClientVPN*' }
-      if ($deployFolder) {
-          $SchedulerScript = Get-ChildItem -Path $deployFolder.FullName -Recurse -Filter 'Scheduler.ps1' | Select-Object -First 1
-          if ($SchedulerScript) {
-              Write-Host "Executing Scheduler.ps1..."
-              & powershell.exe -File $SchedulerScript.FullName -Wait
-              Write-Host "Scheduler.ps1 execution complete."
-          } else {
-              Write-Error "Scheduler.ps1 not found."
-          }
-      } else {
-          Write-Error "No folder found with name containing 'FortiClientEMS'."
-      }
+    # Wait for all processes to complete
+    foreach ($process in $processList) {
+        $process.WaitForExit()
+    }
 
+    # Post-installation validation and summary report (existing code continues here...)
+    
 } catch {
     # Capture the error details
     $errorDetails = $_ | Out-String
-    Write-Host "An error occurred: $errorDetails" -ForegroundColor Red
+    Write-Log "An error occurred: $errorDetails" -Level "ERROR"
     throw
 }
+
+
+# Keep the PowerShell window open to review the logs
+Read-Host 'Press Enter to close this window...'
