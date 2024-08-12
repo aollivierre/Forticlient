@@ -249,8 +249,6 @@ function Get-PowerShellPath {
 }
 
 # Function to execute a PowerShell script from the extracted repository
-
-
 function Execute-Script {
     param (
         [string]$extractPath,
@@ -282,13 +280,13 @@ function Execute-Script {
             # Splatting parameters for Start-Process
             $startProcessParams = @{
                 FilePath     = $powerShellPath
-                ArgumentList = @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"")
-                Wait         = $true
+                ArgumentList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"")
+                Wait         = $false  # Set to false for parallel execution
             }
 
             try {
                 Start-Process @startProcessParams
-                Write-Log "$scriptName execution complete." -Level "INFO"
+                Write-Log "$scriptName has been started in a new PowerShell instance." -Level "INFO"
             }
             catch {
                 Write-Log "An error occurred while executing the script: $_" -Level "ERROR"
@@ -303,6 +301,7 @@ function Execute-Script {
         Write-Log "No folder found with name containing '$folderPattern' in $extractPath." -Level "ERROR"
     }
 }
+
 
 
 
@@ -347,11 +346,16 @@ try {
         Log-Step
         Extract-AllZipFilesRecursively -extractPath $extractPath
 
+        # Execute scripts in parallel
         Log-Step
         Execute-Script -extractPath $extractPath -folderPattern '*FortiClientEMS*' -scriptName 'Uninstall.ps1'
 
         Log-Step
         Execute-Script -extractPath $extractPath -folderPattern '*FortiClientVPN*' -scriptName 'Scheduler.ps1'
+
+        # Optionally, wait for processes to finish before post-validation
+        # Write-Log "Waiting for all processes to complete..." -Level "INFO"
+        # Start-Sleep -Seconds 10  # Adjust this as needed for testing
 
         Log-Step
         Write-Log "Starting post-installation validation for FortiClientVPN..." -Level "INFO"
