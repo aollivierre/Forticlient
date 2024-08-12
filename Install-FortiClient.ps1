@@ -280,7 +280,7 @@ function Execute-Script {
             # Splatting parameters for Start-Process
             $startProcessParams = @{
                 FilePath     = $powerShellPath
-                ArgumentList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"")
+                ArgumentList = @("-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$scriptPath`"")
                 Wait         = $false  # Set to false for parallel execution
             }
 
